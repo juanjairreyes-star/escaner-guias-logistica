@@ -263,48 +263,21 @@
     font-weight:500;
   }
 
-  .sello{
-    display:inline-flex;
-    align-self:flex-start;
-    align-items:center;
-    gap:8px;
-    padding:9px 18px;
-    border-radius:8px;
-    border:2px dashed currentColor;
-    font-family:var(--font-display);
-    font-weight:700;
-    font-size:15px;
-    letter-spacing:.06em;
-    text-transform:uppercase;
-    transform:rotate(-2deg);
+  .resumen-urgencias{
+    display:flex; gap:8px; flex-wrap:wrap;
   }
-  .sello.rojo{ color:var(--rojo); background:var(--rojo-bg); }
-  .sello.amarillo{ color:var(--amarillo); background:var(--amarillo-bg); }
-  .sello.verde{ color:var(--verde); background:var(--verde-bg); }
-  .sello.gris{ color:var(--gris); background:var(--gris-bg); }
-  .sello .punto{
-    width:9px; height:9px; border-radius:50%;
-    background:currentColor;
-    flex-shrink:0;
+  .chip-resumen{
+    display:inline-flex; align-items:center; gap:6px;
+    font-family:var(--font-body);
+    font-size:11.5px; font-weight:700;
+    letter-spacing:.03em; text-transform:uppercase;
+    padding:6px 11px; border-radius:999px;
   }
-
-  .info-fila{
-    display:flex;
-    background:var(--surface);
-    border:1px solid var(--border);
-    border-radius:var(--radio);
-    overflow:hidden;
-  }
-  .info-celda{
-    flex:1;
-    padding:12px 16px;
-    display:flex; flex-direction:column; gap:3px;
-  }
-  .info-celda + .info-celda{ border-left:1px solid var(--border); }
-  .info-celda label{
-    font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); font-weight:600;
-  }
-  .info-celda strong{ font-size:15px; font-weight:600; }
+  .chip-resumen .punto-mini{ width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0; }
+  .chip-resumen.rojo{ color:var(--rojo); background:var(--rojo-bg); }
+  .chip-resumen.amarillo{ color:var(--amarillo); background:var(--amarillo-bg); }
+  .chip-resumen.verde{ color:var(--verde); background:var(--verde-bg); }
+  .chip-resumen.gris{ color:var(--gris); background:var(--gris-bg); }
 
   .lista-titulo{
     display:flex; align-items:baseline; justify-content:space-between;
@@ -320,11 +293,30 @@
     overflow:hidden;
   }
   .producto{
-    padding:14px 16px;
-    display:flex; flex-direction:column; gap:4px;
+    padding:14px 16px 14px 13px;
+    display:flex; flex-direction:column; gap:7px;
+    border-left:4px solid var(--gris);
   }
+  .producto.urgencia-rojo{ border-left-color:var(--rojo); }
+  .producto.urgencia-amarillo{ border-left-color:var(--amarillo); }
+  .producto.urgencia-verde{ border-left-color:var(--verde); }
+  .producto.urgencia-gris{ border-left-color:var(--gris); }
   .producto + .producto{ border-top:1px dashed var(--border); }
+  .producto-cabecera{
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+  }
   .producto-nombre{ font-size:14px; font-weight:500; line-height:1.35; }
+  .badge-urgencia{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:10px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+    padding:4px 9px; border-radius:999px;
+    flex-shrink:0; white-space:nowrap;
+  }
+  .badge-urgencia .punto-mini{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+  .badge-urgencia.rojo{ color:var(--rojo); background:var(--rojo-bg); }
+  .badge-urgencia.amarillo{ color:var(--amarillo); background:var(--amarillo-bg); }
+  .badge-urgencia.verde{ color:var(--verde); background:var(--verde-bg); }
+  .badge-urgencia.gris{ color:var(--gris); background:var(--gris-bg); }
   .producto-meta{
     display:flex; gap:10px; flex-wrap:wrap;
     font-family:var(--font-mono);
@@ -332,6 +324,19 @@
     color:var(--muted);
   }
   .producto-meta b{ color:var(--text); font-weight:500; }
+  .producto-courier-fecha{
+    display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+    font-size:12.5px;
+    color:var(--muted);
+    padding-top:2px;
+    border-top:1px solid var(--border);
+    margin-top:2px;
+    padding-top:7px;
+  }
+  .producto-courier-fecha .courier-chip{
+    color:var(--text); font-weight:700;
+  }
+  .producto-courier-fecha .separador{ opacity:.5; }
 
   .btn-principal{
     background:var(--brand);
@@ -417,19 +422,7 @@
     <div class="cabecera-guia">
       <div class="codigo-guia"><span>Guía escaneada</span><span id="r-guia"></span></div>
     </div>
-    <div class="sello" id="r-sello">
-      <span class="punto"></span><span id="r-sello-texto"></span>
-    </div>
-    <div class="info-fila">
-      <div class="info-celda">
-        <label>Courier</label>
-        <strong id="r-courier">—</strong>
-      </div>
-      <div class="info-celda">
-        <label>Fecha límite</label>
-        <strong id="r-fecha">—</strong>
-      </div>
-    </div>
+    <div class="resumen-urgencias" id="r-resumen"></div>
     <div class="lista-titulo">
       <span>Productos</span>
       <span id="r-total"></span>
@@ -655,31 +648,30 @@
     document.getElementById('r-guia').textContent = codigo;
 
     const productos = datos.productos || [];
-    const urgenciaMasAlta = ordenarUrgencia(productos)[0] || 'sin_fecha';
-    const sello = SEMAFORO[urgenciaMasAlta] || SEMAFORO.sin_fecha;
-    const elSello = document.getElementById('r-sello');
-    elSello.className = 'sello ' + sello.clase;
-    document.getElementById('r-sello-texto').textContent = sello.texto;
-
-    const couriers = [...new Set(productos.map(p => p.curier).filter(Boolean))];
-    document.getElementById('r-courier').textContent = couriers.join(', ') || '—';
-
-    const fechas = [...new Set(productos.map(p => p.fechaLimiteEnvio).filter(Boolean))];
-    document.getElementById('r-fecha').textContent = fechas[0] || '—';
+    mostrarResumenUrgencias(productos);
 
     document.getElementById('r-total').textContent = productos.length + (productos.length === 1 ? ' producto' : ' productos');
 
     const lista = document.getElementById('r-lista');
     lista.innerHTML = '';
     productos.forEach(p => {
+      const sello = SEMAFORO[p.urgencia] || SEMAFORO.sin_fecha;
       const div = document.createElement('div');
-      div.className = 'producto';
+      div.className = 'producto urgencia-' + sello.clase;
       div.innerHTML = `
-        <div class="producto-nombre">${escapeHTML(p.producto || 'Sin descripción')}</div>
+        <div class="producto-cabecera">
+          <div class="producto-nombre">${escapeHTML(p.producto || 'Sin descripción')}</div>
+          <div class="badge-urgencia ${sello.clase}"><span class="punto-mini"></span>${sello.texto}</div>
+        </div>
         <div class="producto-meta">
           <span>SKU <b>${escapeHTML(String(p.sku || '—'))}</b></span>
           <span>Pedido <b>${escapeHTML(String(p.pedido || '—'))}</b></span>
           <span>Estado <b>${escapeHTML(p.estadoProducto || '—')}</b></span>
+        </div>
+        <div class="producto-courier-fecha">
+          <span class="courier-chip">🚚 ${escapeHTML(p.curier || 'Sin courier')}</span>
+          <span class="separador">·</span>
+          <span>Vence ${escapeHTML(p.fechaLimiteEnvio || '—')}</span>
         </div>`;
       lista.appendChild(div);
     });
@@ -687,11 +679,22 @@
     mostrarPantalla('resultado');
   }
 
-  function ordenarUrgencia(productos){
-    const orden = { rojo: 0, amarillo: 1, verde: 2, sin_fecha: 3 };
-    return productos
-      .map(p => p.urgencia)
-      .sort((a, b) => (orden[a] ?? 3) - (orden[b] ?? 3));
+  function mostrarResumenUrgencias(productos){
+    const conteo = { rojo: 0, amarillo: 0, verde: 0, sin_fecha: 0 };
+    productos.forEach(p => {
+      const clave = SEMAFORO[p.urgencia] ? p.urgencia : 'sin_fecha';
+      conteo[clave]++;
+    });
+    const el = document.getElementById('r-resumen');
+    el.innerHTML = '';
+    ['rojo', 'amarillo', 'verde', 'sin_fecha'].forEach(clave => {
+      if (conteo[clave] > 0){
+        const chip = document.createElement('span');
+        chip.className = 'chip-resumen ' + SEMAFORO[clave].clase;
+        chip.innerHTML = `<span class="punto-mini"></span>${conteo[clave]} ${SEMAFORO[clave].texto}`;
+        el.appendChild(chip);
+      }
+    });
   }
 
   function escapeHTML(str){
