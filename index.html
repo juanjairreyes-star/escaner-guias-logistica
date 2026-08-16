@@ -389,9 +389,12 @@
 
   async function iniciarEscaneo(){
     mostrarPantalla('escaneo');
-    html5QrCode = new Html5Qrcode('lector');
-    escaneando = true;
     try {
+      if (typeof Html5Qrcode === 'undefined') {
+        throw new Error('LIBRERIA_NO_CARGADA');
+      }
+      html5QrCode = new Html5Qrcode('lector');
+      escaneando = true;
       await html5QrCode.start(
         { facingMode: 'environment' },
         {
@@ -403,6 +406,8 @@
             Html5QrcodeSupportedFormats.CODE_93,
             Html5QrcodeSupportedFormats.EAN_13,
             Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
             Html5QrcodeSupportedFormats.ITF,
             Html5QrcodeSupportedFormats.QR_CODE
           ]
@@ -411,7 +416,20 @@
         () => {}
       );
     } catch (err) {
-      alert('No se pudo acceder a la cámara. Revisá los permisos del navegador e intentá de nuevo.');
+      escaneando = false;
+      let mensaje;
+      if (err && err.message === 'LIBRERIA_NO_CARGADA') {
+        mensaje = 'No se pudo cargar el lector de código de barras (fallo de red al abrir la página). Recargá la página e intentá de nuevo.';
+      } else if (err && (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')) {
+        mensaje = 'El navegador no tiene permiso de cámara para este sitio. Andá a la configuración del sitio (ícono de candado o "aA" en la barra de direcciones) y habilitá la cámara.';
+      } else if (err && err.name === 'NotFoundError') {
+        mensaje = 'No se encontró ninguna cámara en este dispositivo.';
+      } else if (err && err.name === 'NotReadableError') {
+        mensaje = 'La cámara está siendo usada por otra aplicación. Cerrá otras apps que la estén usando e intentá de nuevo.';
+      } else {
+        mensaje = 'No se pudo acceder a la cámara.\n\nDetalle técnico: ' + (err && (err.name || err.message) ? (err.name || '') + ' ' + (err.message || '') : String(err));
+      }
+      alert(mensaje);
       mostrarPantalla('inicio');
     }
   }
