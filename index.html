@@ -534,7 +534,7 @@
         throw new Error('LIBRERIA_NO_CARGADA');
       }
       html5QrCode = new Html5Qrcode('lector');
-      escaneando = true;
+      escaneando = false; // todavía no aceptamos lecturas
       await html5QrCode.start(
         { facingMode: 'environment' },
         {
@@ -555,6 +555,9 @@
         onScanExitoso,
         () => {}
       );
+      // margen antes de aceptar lecturas: evita releer el código
+      // anterior si todavía está a la vista de la cámara
+      setTimeout(() => { escaneando = true; }, 1000);
     } catch (err) {
       escaneando = false;
       let mensaje;
