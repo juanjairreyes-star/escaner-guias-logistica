@@ -450,23 +450,32 @@
 
   async function buscarGuia(codigo){
     mostrarPantalla('cargando');
+    let respuesta;
     try {
       const url = `${API_URL}?guia=${encodeURIComponent(codigo)}&token=${encodeURIComponent(API_TOKEN)}`;
-      const respuesta = await fetch(url);
-      const datos = await respuesta.json();
-
-      if (datos.error){
-        mostrarVacio('⚠️', 'Error de acceso', datos.error);
-        return;
-      }
-      if (!datos.encontrado){
-        mostrarVacio('📭', 'Guía no encontrada', `El código "${codigo}" no está en el manifiesto. Verificalo o escaneá de nuevo.`);
-        return;
-      }
-      mostrarResultado(codigo, datos);
+      respuesta = await fetch(url);
     } catch (err) {
-      mostrarVacio('📡', 'Sin conexión', 'No se pudo consultar el manifiesto. Revisá tu conexión e intentá de nuevo.');
+      mostrarVacio('📡', 'Sin conexión', 'No se pudo contactar al servidor (' + (err && err.message ? err.message : 'error de red') + '). Revisá tu conexión e intentá de nuevo.');
+      return;
     }
+
+    let datos;
+    try {
+      datos = await respuesta.json();
+    } catch (parseErr) {
+      mostrarVacio('🔒', 'Respuesta inesperada', 'El servidor respondió, pero no con los datos esperados (código HTTP ' + respuesta.status + '). Puede ser un bloqueo de acceso de tu cuenta institucional.');
+      return;
+    }
+
+    if (datos.error){
+      mostrarVacio('⚠️', 'Error de acceso', datos.error);
+      return;
+    }
+    if (!datos.encontrado){
+      mostrarVacio('📭', 'Guía no encontrada', `El código "${codigo}" no está en el manifiesto. Verificalo o escaneá de nuevo.`);
+      return;
+    }
+    mostrarResultado(codigo, datos);
   }
 
   function mostrarVacio(icono, titulo, subtitulo){
