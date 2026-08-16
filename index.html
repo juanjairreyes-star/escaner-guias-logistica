@@ -74,6 +74,39 @@
     margin:0;
     text-transform:uppercase;
   }
+  .fila-header{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .pill-mes{
+    display:inline-flex; align-items:center; gap:6px;
+    background:var(--surface); border:1px solid var(--border);
+    color:var(--text);
+    font-family:var(--font-body); font-size:12.5px; font-weight:600;
+    padding:7px 12px; border-radius:999px;
+    cursor:pointer;
+  }
+  .pill-mes:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+  .pill-mes svg{ width:12px; height:12px; opacity:.7; }
+
+  /* ---- Selector de mes ---- */
+  #pantalla-meses{ flex:1; }
+  .lista-meses{
+    display:flex; flex-direction:column; gap:10px;
+  }
+  .opcion-mes{
+    display:flex; align-items:center; justify-content:space-between;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--radio);
+    padding:16px 18px;
+    font-family:var(--font-body); font-size:16px; font-weight:600;
+    color:var(--text);
+    cursor:pointer; text-align:left;
+  }
+  .opcion-mes:active{ background:var(--surface-2); }
+  .opcion-mes:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+  .opcion-mes.activa{ border-color:var(--brand); color:var(--brand); }
+  .opcion-mes .check{ opacity:0; font-size:15px; }
+  .opcion-mes.activa .check{ opacity:1; }
 
   main{
     flex:1;
@@ -116,6 +149,39 @@
     font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
   }
   .hint{ color:var(--muted); font-size:13px; max-width:280px; line-height:1.5; }
+  .link-manual{
+    background:none; border:none;
+    color:var(--brand);
+    font-family:var(--font-body);
+    font-size:13.5px;
+    font-weight:600;
+    text-decoration:underline;
+    text-underline-offset:3px;
+    cursor:pointer;
+    padding:10px;
+  }
+  .link-manual:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+
+  /* ---- Pantalla ingreso manual ---- */
+  #pantalla-manual{ flex:1; justify-content:center; }
+  .campo-manual{ display:flex; flex-direction:column; gap:8px; }
+  .campo-manual label{
+    font-size:11px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); font-weight:600;
+  }
+  .input-manual{
+    background:var(--surface);
+    border:1.5px solid var(--border);
+    border-radius:var(--radio);
+    color:var(--text);
+    font-family:var(--font-mono);
+    font-size:20px;
+    letter-spacing:.04em;
+    padding:16px;
+    outline:none;
+    width:100%;
+  }
+  .input-manual:focus{ border-color:var(--brand); }
+  #form-manual{ display:flex; flex-direction:column; gap:16px; }
 
   /* ---- Pantalla escaneo (cámara) ---- */
   #pantalla-escaneo{ flex:1; }
@@ -295,10 +361,21 @@
 
 <header>
   <p class="eyebrow">Logística Lima</p>
-  <h1>Escáner de Guías</h1>
+  <div class="fila-header">
+    <h1>Escáner de Guías</h1>
+    <button class="pill-mes" id="pill-mes" type="button" hidden>
+      <span id="pill-mes-texto">—</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+  </div>
 </header>
 
 <main>
+
+  <section id="pantalla-meses" hidden>
+    <p class="hint" style="text-align:left;max-width:none;">Elegí con qué manifiesto mensual querés trabajar.</p>
+    <div class="lista-meses" id="lista-meses"></div>
+  </section>
 
   <section id="pantalla-inicio">
     <button class="boton-escanear" id="btn-iniciar" type="button">
@@ -309,6 +386,18 @@
       <span>Escanear guía</span>
     </button>
     <p class="hint">Apuntá la cámara al código de barras de la guía para ver sus productos, courier y urgencia.</p>
+    <button class="link-manual" id="btn-manual" type="button">Ingresar código manualmente</button>
+  </section>
+
+  <section id="pantalla-manual" hidden>
+    <form id="form-manual">
+      <div class="campo-manual">
+        <label for="input-manual">Código de guía</label>
+        <input class="input-manual" type="text" id="input-manual" placeholder="Ej: Y43533" autocomplete="off" autocapitalize="characters" inputmode="text" enterkeyhint="search">
+      </div>
+      <button class="btn-principal" type="submit">Buscar</button>
+    </form>
+    <button class="btn-cancelar" id="btn-cancelar-manual" type="button">Cancelar</button>
   </section>
 
   <section id="pantalla-escaneo" hidden>
@@ -346,14 +435,14 @@
       <span id="r-total"></span>
     </div>
     <div class="lista-productos" id="r-lista"></div>
-    <button class="btn-principal" id="btn-otra-1" type="button">Escanear otra guía</button>
+    <button class="btn-principal" id="btn-otra-1" type="button">Buscar otra guía</button>
   </section>
 
   <section id="pantalla-vacio" hidden>
     <div class="icono-vacio" id="vacio-icono">📭</div>
     <div class="titulo-vacio" id="vacio-titulo">Guía no encontrada</div>
     <p class="subtitulo-vacio" id="vacio-subtitulo">Verificá que el código sea correcto o intentá escanear de nuevo.</p>
-    <button class="btn-principal" id="btn-otra-2" type="button">Escanear otra guía</button>
+    <button class="btn-principal" id="btn-otra-2" type="button">Buscar otra guía</button>
   </section>
 
 </main>
@@ -372,7 +461,9 @@
   };
 
   const pantallas = {
+    meses: document.getElementById('pantalla-meses'),
     inicio: document.getElementById('pantalla-inicio'),
+    manual: document.getElementById('pantalla-manual'),
     escaneo: document.getElementById('pantalla-escaneo'),
     cargando: document.getElementById('pantalla-cargando'),
     resultado: document.getElementById('pantalla-resultado'),
@@ -384,10 +475,59 @@
     pantallas[nombre].hidden = false;
   }
 
+  let mesSeleccionado = null;
+  let mesesDisponibles = [];
+
+  async function inicializarMeses(){
+    try {
+      const resp = await fetch(`${API_URL}?accion=listarMeses&token=${encodeURIComponent(API_TOKEN)}`);
+      const datos = await resp.json();
+      mesesDisponibles = datos.meses || [];
+    } catch (e) {
+      mesesDisponibles = [];
+    }
+
+    const pill = document.getElementById('pill-mes');
+    if (mesesDisponibles.length > 1){
+      mesSeleccionado = mesesDisponibles[mesesDisponibles.length - 1];
+      pill.hidden = false;
+      pill.addEventListener('click', mostrarSelectorMeses);
+    } else {
+      mesSeleccionado = mesesDisponibles[0] || null;
+      pill.hidden = true;
+    }
+    actualizarPillMes();
+    mostrarPantalla('inicio');
+  }
+
+  function actualizarPillMes(){
+    document.getElementById('pill-mes-texto').textContent = mesSeleccionado || '';
+  }
+
+  function mostrarSelectorMeses(){
+    const lista = document.getElementById('lista-meses');
+    lista.innerHTML = '';
+    mesesDisponibles.forEach(mes => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'opcion-mes' + (mes === mesSeleccionado ? ' activa' : '');
+      btn.innerHTML = `<span>${escapeHTML(mes)}</span><span class="check">✓</span>`;
+      btn.addEventListener('click', () => {
+        mesSeleccionado = mes;
+        actualizarPillMes();
+        mostrarPantalla('inicio');
+      });
+      lista.appendChild(btn);
+    });
+    mostrarPantalla('meses');
+  }
+
   let html5QrCode = null;
   let escaneando = false;
+  let ultimoMetodo = 'camara';
 
   async function iniciarEscaneo(){
+    ultimoMetodo = 'camara';
     mostrarPantalla('escaneo');
     try {
       if (typeof Html5Qrcode === 'undefined') {
@@ -452,7 +592,8 @@
     mostrarPantalla('cargando');
     let respuesta;
     try {
-      const url = `${API_URL}?guia=${encodeURIComponent(codigo)}&token=${encodeURIComponent(API_TOKEN)}`;
+      const mesParam = mesSeleccionado ? `&mes=${encodeURIComponent(mesSeleccionado)}` : '';
+      const url = `${API_URL}?guia=${encodeURIComponent(codigo)}&token=${encodeURIComponent(API_TOKEN)}${mesParam}`;
       respuesta = await fetch(url);
     } catch (err) {
       mostrarVacio('📡', 'Sin conexión', 'No se pudo contactar al servidor (' + (err && err.message ? err.message : 'error de red') + '). Revisá tu conexión e intentá de nuevo.');
@@ -476,6 +617,22 @@
       return;
     }
     mostrarResultado(codigo, datos);
+  }
+
+  function mostrarPantallaManual(){
+    ultimoMetodo = 'manual';
+    mostrarPantalla('manual');
+    const input = document.getElementById('input-manual');
+    input.value = '';
+    setTimeout(() => input.focus(), 50);
+  }
+
+  function reintentar(){
+    if (ultimoMetodo === 'manual') {
+      mostrarPantallaManual();
+    } else {
+      iniciarEscaneo();
+    }
   }
 
   function mostrarVacio(icono, titulo, subtitulo){
@@ -536,13 +693,25 @@
 
   // ---- Eventos ----
   document.getElementById('btn-iniciar').addEventListener('click', iniciarEscaneo);
+  document.getElementById('btn-manual').addEventListener('click', mostrarPantallaManual);
   document.getElementById('btn-cancelar').addEventListener('click', async () => {
     escaneando = false;
     await detenerEscaneo();
     mostrarPantalla('inicio');
   });
-  document.getElementById('btn-otra-1').addEventListener('click', iniciarEscaneo);
-  document.getElementById('btn-otra-2').addEventListener('click', iniciarEscaneo);
+  document.getElementById('btn-cancelar-manual').addEventListener('click', () => {
+    mostrarPantalla('inicio');
+  });
+  document.getElementById('input-manual').addEventListener('input', (e) => {
+    e.target.value = e.target.value.toUpperCase();
+  });
+  document.getElementById('form-manual').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const codigo = document.getElementById('input-manual').value.trim();
+    if (codigo) buscarGuia(codigo);
+  });
+  document.getElementById('btn-otra-1').addEventListener('click', reintentar);
+  document.getElementById('btn-otra-2').addEventListener('click', reintentar);
 
   // ---- Registro del service worker (para que se pueda instalar) ----
   if ('serviceWorker' in navigator){
@@ -550,6 +719,9 @@
       navigator.serviceWorker.register('sw.js').catch(() => {});
     });
   }
+
+  // ---- Arranque: cargar meses disponibles antes de mostrar la pantalla de inicio ----
+  inicializarMeses();
 </script>
 
 </body>
