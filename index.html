@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Escáner de Guías — Logística</title>
+<meta name="theme-color" content="#14171c">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#14171c;
+    --surface:#1c2129;
+    --surface-2:#242b35;
+    --border:#333a45;
+    --text:#f2f4f7;
+    --muted:#8b93a1;
+    --brand:#4f8fea;
+    --brand-dim:#28405f;
+    --rojo:#e5484d;
+    --rojo-bg:#3a1e20;
+    --amarillo:#f0b429;
+    --amarillo-bg:#3a2e12;
+    --verde:#30a46c;
+    --verde-bg:#123326;
+    --gris:#8b93a1;
+    --gris-bg:#262c35;
+    --font-display:'Space Grotesk', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+    --radio:14px;
+  }
+
+  *{ box-sizing:border-box; }
+
+  html,body{
+    margin:0; padding:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    height:100%;
+    overscroll-behavior-y:contain;
+  }
+
+  body{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    min-height:100dvh;
+  }
+
+  header{
+    padding:18px 20px 14px;
+    border-bottom:1px solid var(--border);
+    flex-shrink:0;
+  }
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:11px;
+    letter-spacing:.12em;
+    color:var(--brand);
+    text-transform:uppercase;
+    margin:0 0 4px;
+  }
+  h1{
+    font-family:var(--font-display);
+    font-size:20px;
+    font-weight:700;
+    letter-spacing:-.01em;
+    margin:0;
+    text-transform:uppercase;
+  }
+
+  main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    padding:20px;
+    gap:16px;
+    max-width:520px;
+    width:100%;
+    margin:0 auto;
+  }
+
+  section{ display:flex; flex-direction:column; gap:16px; }
+  [hidden]{ display:none !important; }
+
+  /* ---- Pantalla inicio ---- */
+  #pantalla-inicio{
+    flex:1;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    gap:22px;
+  }
+  .boton-escanear{
+    width:180px; height:180px;
+    border-radius:50%;
+    background:var(--surface);
+    border:2px solid var(--brand);
+    color:var(--brand);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:10px;
+    cursor:pointer;
+    transition:transform .15s ease, background .15s ease;
+    font-family:var(--font-body);
+  }
+  .boton-escanear:active{ transform:scale(.96); background:var(--surface-2); }
+  .boton-escanear:focus-visible{ outline:3px solid var(--brand); outline-offset:4px; }
+  .boton-escanear span{
+    font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase;
+  }
+  .hint{ color:var(--muted); font-size:13px; max-width:280px; line-height:1.5; }
+
+  /* ---- Pantalla escaneo (cámara) ---- */
+  #pantalla-escaneo{ flex:1; }
+  .marco-camara{
+    position:relative;
+    border-radius:var(--radio);
+    overflow:hidden;
+    border:2px solid var(--brand);
+    background:#000;
+    aspect-ratio:3/4;
+  }
+  #lector{ width:100%; height:100%; }
+  #lector video{ object-fit:cover !important; }
+  .linea-escaneo{
+    position:absolute; left:8%; right:8%; height:2px;
+    background:var(--brand);
+    box-shadow:0 0 8px 1px var(--brand);
+    top:20%;
+    animation:barrido 2.2s ease-in-out infinite;
+    pointer-events:none;
+  }
+  @keyframes barrido{
+    0%,100%{ top:18%; }
+    50%{ top:78%; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .linea-escaneo{ animation:none; top:50%; }
+  }
+  .btn-cancelar{
+    align-self:center;
+    background:none;
+    border:1px solid var(--border);
+    color:var(--muted);
+    font-family:var(--font-body);
+    font-size:14px;
+    padding:10px 22px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .btn-cancelar:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+
+  /* ---- Cargando ---- */
+  #pantalla-cargando{
+    flex:1; align-items:center; justify-content:center; text-align:center; gap:14px;
+  }
+  .spinner{
+    width:40px; height:40px;
+    border-radius:50%;
+    border:3px solid var(--border);
+    border-top-color:var(--brand);
+    animation:girar .8s linear infinite;
+  }
+  @keyframes girar{ to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){
+    .spinner{ animation:none; border-top-color:var(--brand); }
+  }
+
+  /* ---- Resultado ---- */
+  #pantalla-resultado{ flex:1; }
+
+  .cabecera-guia{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+  }
+  .codigo-guia{
+    font-family:var(--font-mono);
+    font-size:22px;
+    font-weight:600;
+    letter-spacing:.02em;
+    word-break:break-all;
+  }
+  .codigo-guia span{
+    display:block;
+    font-family:var(--font-body);
+    font-size:11px;
+    letter-spacing:.1em;
+    color:var(--muted);
+    text-transform:uppercase;
+    margin-bottom:3px;
+    font-weight:500;
+  }
+
+  .sello{
+    display:inline-flex;
+    align-self:flex-start;
+    align-items:center;
+    gap:8px;
+    padding:9px 18px;
+    border-radius:8px;
+    border:2px dashed currentColor;
+    font-family:var(--font-display);
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    transform:rotate(-2deg);
+  }
+  .sello.rojo{ color:var(--rojo); background:var(--rojo-bg); }
+  .sello.amarillo{ color:var(--amarillo); background:var(--amarillo-bg); }
+  .sello.verde{ color:var(--verde); background:var(--verde-bg); }
+  .sello.gris{ color:var(--gris); background:var(--gris-bg); }
+  .sello .punto{
+    width:9px; height:9px; border-radius:50%;
+    background:currentColor;
+    flex-shrink:0;
+  }
+
+  .info-fila{
+    display:flex;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radio);
+    overflow:hidden;
+  }
+  .info-celda{
+    flex:1;
+    padding:12px 16px;
+    display:flex; flex-direction:column; gap:3px;
+  }
+  .info-celda + .info-celda{ border-left:1px solid var(--border); }
+  .info-celda label{
+    font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--muted); font-weight:600;
+  }
+  .info-celda strong{ font-size:15px; font-weight:600; }
+
+  .lista-titulo{
+    display:flex; align-items:baseline; justify-content:space-between;
+    font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600;
+    margin-top:4px;
+  }
+
+  .lista-productos{
+    display:flex; flex-direction:column;
+    border-radius:var(--radio);
+    background:var(--surface);
+    border:1px solid var(--border);
+    overflow:hidden;
+  }
+  .producto{
+    padding:14px 16px;
+    display:flex; flex-direction:column; gap:4px;
+  }
+  .producto + .producto{ border-top:1px dashed var(--border); }
+  .producto-nombre{ font-size:14px; font-weight:500; line-height:1.35; }
+  .producto-meta{
+    display:flex; gap:10px; flex-wrap:wrap;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--muted);
+  }
+  .producto-meta b{ color:var(--text); font-weight:500; }
+
+  .btn-principal{
+    background:var(--brand);
+    color:#0c1116;
+    border:none;
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:15px;
+    padding:15px 20px;
+    border-radius:999px;
+    cursor:pointer;
+    letter-spacing:.01em;
+  }
+  .btn-principal:active{ transform:scale(.98); }
+  .btn-principal:focus-visible{ outline:3px solid var(--brand); outline-offset:3px; }
+
+  /* ---- No encontrada / error ---- */
+  #pantalla-vacio{
+    flex:1; align-items:center; justify-content:center; text-align:center; gap:14px;
+  }
+  .icono-vacio{ font-size:44px; opacity:.7; }
+  .titulo-vacio{ font-family:var(--font-display); font-size:18px; font-weight:700; text-transform:uppercase; }
+  .subtitulo-vacio{ color:var(--muted); font-size:13.5px; max-width:260px; line-height:1.5; }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">Logística Lima</p>
+  <h1>Escáner de Guías</h1>
+</header>
+
+<main>
+
+  <section id="pantalla-inicio">
+    <button class="boton-escanear" id="btn-iniciar" type="button">
+      <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+        <path d="M3 7V4a1 1 0 0 1 1-1h3M21 7V4a1 1 0 0 0-1-1h-3M3 17v3a1 1 0 0 0 1 1h3M21 17v3a1 1 0 0 1-1 1h-3"/>
+        <path d="M6 8v8M9.5 8v8M12 8v8M14.5 8v8M18 8v8" stroke-width="1.8"/>
+      </svg>
+      <span>Escanear guía</span>
+    </button>
+    <p class="hint">Apuntá la cámara al código de barras de la guía para ver sus productos, courier y urgencia.</p>
+  </section>
+
+  <section id="pantalla-escaneo" hidden>
+    <div class="marco-camara">
+      <div id="lector"></div>
+      <div class="linea-escaneo"></div>
+    </div>
+    <button class="btn-cancelar" id="btn-cancelar" type="button">Cancelar</button>
+  </section>
+
+  <section id="pantalla-cargando" hidden>
+    <div class="spinner"></div>
+    <p class="hint">Buscando guía en el manifiesto…</p>
+  </section>
+
+  <section id="pantalla-resultado" hidden>
+    <div class="cabecera-guia">
+      <div class="codigo-guia"><span>Guía escaneada</span><span id="r-guia"></span></div>
+    </div>
+    <div class="sello" id="r-sello">
+      <span class="punto"></span><span id="r-sello-texto"></span>
+    </div>
+    <div class="info-fila">
+      <div class="info-celda">
+        <label>Courier</label>
+        <strong id="r-courier">—</strong>
+      </div>
+      <div class="info-celda">
+        <label>Fecha límite</label>
+        <strong id="r-fecha">—</strong>
+      </div>
+    </div>
+    <div class="lista-titulo">
+      <span>Productos</span>
+      <span id="r-total"></span>
+    </div>
+    <div class="lista-productos" id="r-lista"></div>
+    <button class="btn-principal" id="btn-otra-1" type="button">Escanear otra guía</button>
+  </section>
+
+  <section id="pantalla-vacio" hidden>
+    <div class="icono-vacio" id="vacio-icono">📭</div>
+    <div class="titulo-vacio" id="vacio-titulo">Guía no encontrada</div>
+    <p class="subtitulo-vacio" id="vacio-subtitulo">Verificá que el código sea correcto o intentá escanear de nuevo.</p>
+    <button class="btn-principal" id="btn-otra-2" type="button">Escanear otra guía</button>
+  </section>
+
+</main>
+
+<script src="https://unpkg.com/[email protected]/html5-qrcode.min.js"></script>
+<script>
+  // ====== CONFIGURACIÓN — el mismo endpoint y token del Apps Script ======
+  const API_URL = 'https://script.google.com/a/macros/unmsm.edu.pe/s/AKfycbyJAEHDzUEYEjykyj92-0e7moGgweAJaJONzQW-EcAx-UhaVCtYPtnBhxDK_4q3Ox5B1Q/exec';
+  const API_TOKEN = '19991999';
+
+  const SEMAFORO = {
+    rojo:     { clase: 'rojo',     texto: 'Vencido'   },
+    amarillo: { clase: 'amarillo', texto: 'Vence hoy' },
+    verde:    { clase: 'verde',    texto: 'A tiempo'  },
+    sin_fecha:{ clase: 'gris',     texto: 'Sin fecha' }
+  };
+
+  const pantallas = {
+    inicio: document.getElementById('pantalla-inicio'),
+    escaneo: document.getElementById('pantalla-escaneo'),
+    cargando: document.getElementById('pantalla-cargando'),
+    resultado: document.getElementById('pantalla-resultado'),
+    vacio: document.getElementById('pantalla-vacio')
+  };
+
+  function mostrarPantalla(nombre){
+    Object.values(pantallas).forEach(p => p.hidden = true);
+    pantallas[nombre].hidden = false;
+  }
+
+  let html5QrCode = null;
+  let escaneando = false;
+
+  async function iniciarEscaneo(){
+    mostrarPantalla('escaneo');
+    html5QrCode = new Html5Qrcode('lector');
+    escaneando = true;
+    try {
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 260, height: 130 },
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.QR_CODE
+          ]
+        },
+        onScanExitoso,
+        () => {}
+      );
+    } catch (err) {
+      alert('No se pudo acceder a la cámara. Revisá los permisos del navegador e intentá de nuevo.');
+      mostrarPantalla('inicio');
+    }
+  }
+
+  async function detenerEscaneo(){
+    if (html5QrCode && escaneando){
+      try { await html5QrCode.stop(); } catch(e) {}
+      escaneando = false;
+    }
+  }
+
+  async function onScanExitoso(codigoDecodificado){
+    if (!escaneando) return;
+    escaneando = false;
+    await detenerEscaneo();
+    buscarGuia(codigoDecodificado.trim());
+  }
+
+  async function buscarGuia(codigo){
+    mostrarPantalla('cargando');
+    try {
+      const url = `${API_URL}?guia=${encodeURIComponent(codigo)}&token=${encodeURIComponent(API_TOKEN)}`;
+      const respuesta = await fetch(url);
+      const datos = await respuesta.json();
+
+      if (datos.error){
+        mostrarVacio('⚠️', 'Error de acceso', datos.error);
+        return;
+      }
+      if (!datos.encontrado){
+        mostrarVacio('📭', 'Guía no encontrada', `El código "${codigo}" no está en el manifiesto. Verificalo o escaneá de nuevo.`);
+        return;
+      }
+      mostrarResultado(codigo, datos);
+    } catch (err) {
+      mostrarVacio('📡', 'Sin conexión', 'No se pudo consultar el manifiesto. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  function mostrarVacio(icono, titulo, subtitulo){
+    document.getElementById('vacio-icono').textContent = icono;
+    document.getElementById('vacio-titulo').textContent = titulo;
+    document.getElementById('vacio-subtitulo').textContent = subtitulo;
+    mostrarPantalla('vacio');
+  }
+
+  function mostrarResultado(codigo, datos){
+    document.getElementById('r-guia').textContent = codigo;
+
+    const productos = datos.productos || [];
+    const urgenciaMasAlta = ordenarUrgencia(productos)[0] || 'sin_fecha';
+    const sello = SEMAFORO[urgenciaMasAlta] || SEMAFORO.sin_fecha;
+    const elSello = document.getElementById('r-sello');
+    elSello.className = 'sello ' + sello.clase;
+    document.getElementById('r-sello-texto').textContent = sello.texto;
+
+    const couriers = [...new Set(productos.map(p => p.curier).filter(Boolean))];
+    document.getElementById('r-courier').textContent = couriers.join(', ') || '—';
+
+    const fechas = [...new Set(productos.map(p => p.fechaLimiteEnvio).filter(Boolean))];
+    document.getElementById('r-fecha').textContent = fechas[0] || '—';
+
+    document.getElementById('r-total').textContent = productos.length + (productos.length === 1 ? ' producto' : ' productos');
+
+    const lista = document.getElementById('r-lista');
+    lista.innerHTML = '';
+    productos.forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'producto';
+      div.innerHTML = `
+        <div class="producto-nombre">${escapeHTML(p.producto || 'Sin descripción')}</div>
+        <div class="producto-meta">
+          <span>SKU <b>${escapeHTML(String(p.sku || '—'))}</b></span>
+          <span>Pedido <b>${escapeHTML(String(p.pedido || '—'))}</b></span>
+          <span>Estado <b>${escapeHTML(p.estadoProducto || '—')}</b></span>
+        </div>`;
+      lista.appendChild(div);
+    });
+
+    mostrarPantalla('resultado');
+  }
+
+  function ordenarUrgencia(productos){
+    const orden = { rojo: 0, amarillo: 1, verde: 2, sin_fecha: 3 };
+    return productos
+      .map(p => p.urgencia)
+      .sort((a, b) => (orden[a] ?? 3) - (orden[b] ?? 3));
+  }
+
+  function escapeHTML(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ---- Eventos ----
+  document.getElementById('btn-iniciar').addEventListener('click', iniciarEscaneo);
+  document.getElementById('btn-cancelar').addEventListener('click', async () => {
+    escaneando = false;
+    await detenerEscaneo();
+    mostrarPantalla('inicio');
+  });
+  document.getElementById('btn-otra-1').addEventListener('click', iniciarEscaneo);
+  document.getElementById('btn-otra-2').addEventListener('click', iniciarEscaneo);
+
+  // ---- Registro del service worker (para que se pueda instalar) ----
+  if ('serviceWorker' in navigator){
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+    });
+  }
+</script>
+
+</body>
+</html>
