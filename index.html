@@ -525,10 +525,13 @@
   let html5QrCode = null;
   let escaneando = false;
   let ultimoMetodo = 'camara';
+  let sesionEscaneoActual = 0;
 
   async function iniciarEscaneo(){
     ultimoMetodo = 'camara';
     mostrarPantalla('escaneo');
+    sesionEscaneoActual++;
+    const miSesion = sesionEscaneoActual;
     try {
       if (typeof Html5Qrcode === 'undefined') {
         throw new Error('LIBRERIA_NO_CARGADA');
@@ -552,12 +555,14 @@
             Html5QrcodeSupportedFormats.QR_CODE
           ]
         },
-        onScanExitoso,
+        (codigoDecodificado) => onScanExitoso(codigoDecodificado, miSesion),
         () => {}
       );
       // margen antes de aceptar lecturas: evita releer el código
       // anterior si todavía está a la vista de la cámara
-      setTimeout(() => { escaneando = true; }, 1000);
+      setTimeout(() => {
+        if (miSesion === sesionEscaneoActual) escaneando = true;
+      }, 1000);
     } catch (err) {
       escaneando = false;
       let mensaje;
@@ -578,13 +583,14 @@
   }
 
   async function detenerEscaneo(){
-    if (html5QrCode && escaneando){
+    if (html5QrCode){
       try { await html5QrCode.stop(); } catch(e) {}
-      escaneando = false;
+      try { html5QrCode.clear(); } catch(e) {}
     }
   }
 
-  async function onScanExitoso(codigoDecodificado){
+  async function onScanExitoso(codigoDecodificado, sesionOrigen){
+    if (sesionOrigen !== sesionEscaneoActual) return; // detección tardía de una sesión anterior, ignorar
     if (!escaneando) return;
     escaneando = false;
     await detenerEscaneo();
