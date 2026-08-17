@@ -93,7 +93,13 @@
   .lista-meses{
     display:flex; flex-direction:column; gap:10px;
   }
-  .opcion-mes{
+  #pantalla-manifiestos, #pantalla-couriers{ flex:1; }
+  .lista-opciones{
+    display:flex; flex-direction:column; gap:10px;
+    overflow-y:auto;
+  }
+  #pantalla-lista-pendientes{ flex:1; }
+  .opcion-lista{
     display:flex; align-items:center; justify-content:space-between;
     background:var(--surface); border:1px solid var(--border);
     border-radius:var(--radio);
@@ -102,11 +108,11 @@
     color:var(--text);
     cursor:pointer; text-align:left;
   }
-  .opcion-mes:active{ background:var(--surface-2); }
-  .opcion-mes:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
-  .opcion-mes.activa{ border-color:var(--brand); color:var(--brand); }
-  .opcion-mes .check{ opacity:0; font-size:15px; }
-  .opcion-mes.activa .check{ opacity:1; }
+  .opcion-lista:active{ background:var(--surface-2); }
+  .opcion-lista:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+  .opcion-lista.activa{ border-color:var(--brand); color:var(--brand); }
+  .opcion-lista .check{ opacity:0; font-size:15px; }
+  .opcion-lista.activa .check{ opacity:1; }
 
   main{
     flex:1;
@@ -161,6 +167,28 @@
     padding:10px;
   }
   .link-manual:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+
+  .separador-inicio{
+    width:60px; height:1px;
+    background:var(--border);
+    margin:4px 0;
+  }
+  .btn-pendientes{
+    display:flex; align-items:center; justify-content:center; gap:9px;
+    width:100%; max-width:320px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    color:var(--text);
+    font-family:var(--font-body);
+    font-size:14px;
+    font-weight:600;
+    padding:14px 18px;
+    border-radius:999px;
+    cursor:pointer;
+  }
+  .btn-pendientes:active{ background:var(--surface-2); }
+  .btn-pendientes:focus-visible{ outline:2px solid var(--brand); outline-offset:2px; }
+  .btn-pendientes svg{ opacity:.75; flex-shrink:0; }
 
   /* ---- Pantalla ingreso manual ---- */
   #pantalla-manual{ flex:1; justify-content:center; }
@@ -406,6 +434,40 @@
     </button>
     <p class="hint">Apuntá la cámara al código de barras de la guía para ver sus productos, courier y urgencia.</p>
     <button class="link-manual" id="btn-manual" type="button">Ingresar código manualmente</button>
+    <div class="separador-inicio"></div>
+    <button class="btn-pendientes" id="btn-pendientes" type="button">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+        <rect x="9" y="3" width="6" height="4" rx="1"/>
+        <path d="M9 12h6M9 16h6"/>
+      </svg>
+      <span>Lista de productos pendientes</span>
+    </button>
+  </section>
+
+  <section id="pantalla-manifiestos" hidden>
+    <p class="hint" style="text-align:left;max-width:none;">Elegí el manifiesto para ver sus productos pendientes.</p>
+    <div class="lista-opciones" id="lista-manifiestos"></div>
+    <button class="btn-cancelar" id="btn-cancelar-manifiestos" type="button">Cancelar</button>
+  </section>
+
+  <section id="pantalla-couriers" hidden>
+    <p class="hint" style="text-align:left;max-width:none;">Elegí el courier.</p>
+    <div class="lista-opciones" id="lista-couriers"></div>
+    <button class="btn-cancelar" id="btn-cancelar-couriers" type="button">Volver</button>
+  </section>
+
+  <section id="pantalla-lista-pendientes" hidden>
+    <div class="cabecera-guia">
+      <div class="codigo-guia"><span>Pendientes</span><span id="lp-titulo"></span></div>
+    </div>
+    <p class="fuente-archivo" id="lp-archivo"></p>
+    <div class="lista-titulo">
+      <span>Productos</span>
+      <span id="lp-total"></span>
+    </div>
+    <div class="lista-productos" id="lp-lista"></div>
+    <button class="btn-cancelar" id="btn-otra-lista" type="button">Elegir otro manifiesto o courier</button>
   </section>
 
   <section id="pantalla-manual" hidden>
@@ -475,7 +537,10 @@
     escaneo: document.getElementById('pantalla-escaneo'),
     cargando: document.getElementById('pantalla-cargando'),
     resultado: document.getElementById('pantalla-resultado'),
-    vacio: document.getElementById('pantalla-vacio')
+    vacio: document.getElementById('pantalla-vacio'),
+    manifiestos: document.getElementById('pantalla-manifiestos'),
+    couriers: document.getElementById('pantalla-couriers'),
+    listaPendientes: document.getElementById('pantalla-lista-pendientes')
   };
 
   function mostrarPantalla(nombre){
@@ -518,7 +583,7 @@
     mesesDisponibles.forEach(mes => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'opcion-mes' + (mes === mesSeleccionado ? ' activa' : '');
+      btn.className = 'opcion-lista' + (mes === mesSeleccionado ? ' activa' : '');
       btn.innerHTML = `<span>${escapeHTML(mes)}</span><span class="check">✓</span>`;
       btn.addEventListener('click', () => {
         mesSeleccionado = mes;
@@ -716,6 +781,141 @@
     });
   }
 
+  // ---- Flujo de "Lista de productos pendientes" ----
+  let manifiestoSeleccionadoPendientes = null;
+  let courierSeleccionadoPendientes = null;
+  let manifiestosCache = [];
+
+  async function iniciarFlujoPendientes(){
+    mostrarPantalla('cargando');
+    try {
+      const mesParam = mesSeleccionado ? `&mes=${encodeURIComponent(mesSeleccionado)}` : '';
+      const resp = await fetch(`${API_URL}?accion=listarManifiestos&token=${encodeURIComponent(API_TOKEN)}${mesParam}`);
+      const datos = await resp.json();
+      if (datos.error){
+        mostrarVacio('⚠️', 'Error', datos.error);
+        return;
+      }
+      manifiestosCache = datos.manifiestos || [];
+      renderListaManifiestos();
+    } catch (err) {
+      mostrarVacio('📡', 'Sin conexión', 'No se pudo cargar la lista de manifiestos. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  function renderListaManifiestos(){
+    const cont = document.getElementById('lista-manifiestos');
+    cont.innerHTML = '';
+    manifiestosCache.forEach(m => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'opcion-lista';
+      btn.innerHTML = `<span>${escapeHTML(m)}</span>`;
+      btn.addEventListener('click', () => seleccionarManifiestoPendientes(m));
+      cont.appendChild(btn);
+    });
+    mostrarPantalla('manifiestos');
+  }
+
+  async function seleccionarManifiestoPendientes(m){
+    manifiestoSeleccionadoPendientes = m;
+    mostrarPantalla('cargando');
+    try {
+      const mesParam = mesSeleccionado ? `&mes=${encodeURIComponent(mesSeleccionado)}` : '';
+      const url = `${API_URL}?accion=listarCouriers&manifiesto=${encodeURIComponent(m)}&token=${encodeURIComponent(API_TOKEN)}${mesParam}`;
+      const resp = await fetch(url);
+      const datos = await resp.json();
+      if (datos.error){
+        mostrarVacio('⚠️', 'Error', datos.error);
+        return;
+      }
+      const couriers = datos.couriers || [];
+      if (couriers.length === 0){
+        mostrarVacio('✅', 'Sin pendientes', `El manifiesto ${m} no tiene productos pendientes por procesar.`);
+        return;
+      }
+      renderListaCouriers(couriers);
+    } catch (err) {
+      mostrarVacio('📡', 'Sin conexión', 'No se pudo cargar la lista de couriers. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  function renderListaCouriers(couriers){
+    const cont = document.getElementById('lista-couriers');
+    cont.innerHTML = '';
+    couriers.forEach(c => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'opcion-lista';
+      btn.innerHTML = `<span>${escapeHTML(c)}</span>`;
+      btn.addEventListener('click', () => seleccionarCourierPendientes(c));
+      cont.appendChild(btn);
+    });
+    mostrarPantalla('couriers');
+  }
+
+  async function seleccionarCourierPendientes(c){
+    courierSeleccionadoPendientes = c;
+    mostrarPantalla('cargando');
+    try {
+      const mesParam = mesSeleccionado ? `&mes=${encodeURIComponent(mesSeleccionado)}` : '';
+      const url = `${API_URL}?accion=pendientes&manifiesto=${encodeURIComponent(manifiestoSeleccionadoPendientes)}&courier=${encodeURIComponent(c)}&token=${encodeURIComponent(API_TOKEN)}${mesParam}`;
+      const resp = await fetch(url);
+      const datos = await resp.json();
+      if (datos.error){
+        mostrarVacio('⚠️', 'Error', datos.error);
+        return;
+      }
+      renderListaPendientes(datos);
+    } catch (err) {
+      mostrarVacio('📡', 'Sin conexión', 'No se pudo cargar la lista de pendientes. Revisá tu conexión e intentá de nuevo.');
+    }
+  }
+
+  function contarProductosReales(productos){
+    return productos.reduce((total, p) => {
+      const skus = String(p.sku).split('/').map(s => s.trim()).filter(Boolean);
+      return total + Math.max(skus.length, 1);
+    }, 0);
+  }
+
+  function renderListaPendientes(datos){
+    const productos = datos.productos || [];
+    document.getElementById('lp-titulo').textContent = `${datos.manifiesto} · ${datos.courier}`;
+    document.getElementById('lp-archivo').textContent = datos.archivo || '';
+
+    const totalReal = contarProductosReales(productos);
+    document.getElementById('lp-total').textContent =
+      `${productos.length} pedido${productos.length === 1 ? '' : 's'} · ${totalReal} producto${totalReal === 1 ? '' : 's'}`;
+
+    const lista = document.getElementById('lp-lista');
+    lista.innerHTML = '';
+
+    productos.forEach(p => {
+      const sello = SEMAFORO[p.urgencia] || SEMAFORO.sin_fecha;
+      const skus = String(p.sku).split('/').map(s => s.trim()).filter(Boolean);
+      const div = document.createElement('div');
+      div.className = 'producto urgencia-' + sello.clase;
+      div.innerHTML = `
+        <div class="producto-cabecera">
+          <div class="producto-nombre">${escapeHTML(p.producto || 'Sin descripción')}</div>
+          <div class="badge-urgencia ${sello.clase}"><span class="punto-mini"></span>${sello.texto}</div>
+        </div>
+        <div class="producto-meta">
+          <span>Guía <b>${escapeHTML(p.guia || '—')}</b></span>
+          <span>Pedido <b>${escapeHTML(String(p.pedido || '—'))}</b></span>
+          <span>SKU <b>${escapeHTML(String(p.sku || '—'))}</b></span>
+        </div>
+        <div class="producto-courier-fecha">
+          <span>Vence ${escapeHTML(p.fechaLimiteEnvio || '—')}</span>
+          ${skus.length > 1 ? `<span class="separador">·</span><span>${skus.length} productos en este pedido</span>` : ''}
+        </div>`;
+      lista.appendChild(div);
+    });
+
+    mostrarPantalla('listaPendientes');
+  }
+
   function escapeHTML(str){
     const div = document.createElement('div');
     div.textContent = str;
@@ -743,6 +943,12 @@
   });
   document.getElementById('btn-otra-1').addEventListener('click', reintentar);
   document.getElementById('btn-otra-2').addEventListener('click', reintentar);
+  document.getElementById('btn-pendientes').addEventListener('click', iniciarFlujoPendientes);
+  document.getElementById('btn-cancelar-manifiestos').addEventListener('click', () => {
+    mostrarPantalla('inicio');
+  });
+  document.getElementById('btn-cancelar-couriers').addEventListener('click', renderListaManifiestos);
+  document.getElementById('btn-otra-lista').addEventListener('click', iniciarFlujoPendientes);
 
   // ---- Registro del service worker (para que se pueda instalar) ----
   if ('serviceWorker' in navigator){
