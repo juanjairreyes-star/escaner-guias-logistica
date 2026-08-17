@@ -266,6 +266,12 @@
   .resumen-urgencias{
     display:flex; gap:8px; flex-wrap:wrap;
   }
+  .fuente-archivo{
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--muted);
+    margin:-8px 0 0;
+  }
   .chip-resumen{
     display:inline-flex; align-items:center; gap:6px;
     font-family:var(--font-body);
@@ -422,6 +428,7 @@
     <div class="cabecera-guia">
       <div class="codigo-guia"><span>Guía escaneada</span><span id="r-guia"></span></div>
     </div>
+    <p class="fuente-archivo" id="r-archivo"></p>
     <div class="resumen-urgencias" id="r-resumen"></div>
     <div class="lista-titulo">
       <span>Productos</span>
@@ -646,6 +653,7 @@
 
   function mostrarResultado(codigo, datos){
     document.getElementById('r-guia').textContent = codigo;
+    document.getElementById('r-archivo').textContent = datos.archivo || '';
 
     const productos = datos.productos || [];
     mostrarResumenUrgencias(productos);
@@ -667,6 +675,7 @@
           <span>SKU <b>${escapeHTML(String(p.sku || '—'))}</b></span>
           <span>Pedido <b>${escapeHTML(String(p.pedido || '—'))}</b></span>
           <span>Estado <b>${escapeHTML(p.estadoProducto || '—')}</b></span>
+          <span>Manifiesto <b>${escapeHTML(p.manifiesto || '—')}</b></span>
         </div>
         <div class="producto-courier-fecha">
           <span class="courier-chip">🚚 ${escapeHTML(p.curier || 'Sin courier')}</span>
