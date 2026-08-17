@@ -270,7 +270,7 @@
     font-family:var(--font-mono);
     font-size:11.5px;
     color:var(--muted);
-    margin:-8px 0 0;
+    margin:0;
   }
   .chip-resumen{
     display:inline-flex; align-items:center; gap:6px;
@@ -343,6 +343,14 @@
     color:var(--text); font-weight:700;
   }
   .producto-courier-fecha .separador{ opacity:.5; }
+  .aviso-relacionadas{
+    font-size:11.5px;
+    color:var(--amarillo);
+    background:var(--amarillo-bg);
+    border-radius:8px;
+    padding:6px 10px;
+    margin-top:2px;
+  }
 
   .btn-principal{
     background:var(--brand);
@@ -664,6 +672,7 @@
     lista.innerHTML = '';
     productos.forEach(p => {
       const sello = SEMAFORO[p.urgencia] || SEMAFORO.sin_fecha;
+      const tieneRelacionadas = p.guiasRelacionadas && p.guiasRelacionadas.length > 0;
       const div = document.createElement('div');
       div.className = 'producto urgencia-' + sello.clase;
       div.innerHTML = `
@@ -681,7 +690,8 @@
           <span class="courier-chip">🚚 ${escapeHTML(p.curier || 'Sin courier')}</span>
           <span class="separador">·</span>
           <span>Vence ${escapeHTML(p.fechaLimiteEnvio || '—')}</span>
-        </div>`;
+        </div>
+        ${tieneRelacionadas ? `<div class="aviso-relacionadas">⚠️ Este pedido también viaja en: ${escapeHTML(p.guiasRelacionadas.join(', '))}</div>` : ''}`;
       lista.appendChild(div);
     });
 
