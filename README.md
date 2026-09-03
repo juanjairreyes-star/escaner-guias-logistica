@@ -1,1 +1,0 @@
-# escaner-guias-logistica
