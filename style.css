@@ -146,3 +146,26 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .import-log p { margin: 3px 0; }
 .import-log p.ok { color: var(--loc-palet01); }
 .import-log p.err { color: var(--loc-piso); }
+
+/* --- Cámara --- */
+.camara-zona { display: flex; flex-direction: column; gap: 10px; }
+.btn--camara { background: var(--surface); color: var(--text); border: 1px solid var(--border); width: 100%; }
+.btn--camara[data-activa="true"] { border-color: var(--loc-piso); color: var(--loc-piso); }
+.reader { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; min-height: 240px; background: var(--surface); }
+.reader video { border-radius: var(--radius); }
+
+/* --- Ubicaciones por caja --- */
+.ubicaciones-cajas[hidden] { display: none; }
+.ubicaciones-cajas { display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; }
+.ubicaciones-cajas__titulo { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+.ubicacion-caja { display: flex; justify-content: space-between; align-items: baseline; font-family: var(--font-mono); font-size: 13px; }
+.ubicacion-caja__num { color: var(--text-muted); }
+.ubicacion-caja__loc { font-weight: 500; }
+.ubicacion-caja[data-actual="true"] .ubicacion-caja__num,
+.ubicacion-caja[data-actual="true"] .ubicacion-caja__loc { color: var(--loc-estante04); }
+
+/* --- Botón borrar manifiesto --- */
+.manifiesto-item__acciones { display: flex; gap: 8px; align-items: center; }
+.manifiesto-item__borrar { background: none; border: 1px solid var(--border); color: var(--text-muted); font-family: var(--font-body); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 999px; cursor: pointer; transition: border-color 150ms, color 150ms; }
+.manifiesto-item__borrar:hover { border-color: var(--loc-piso); color: var(--loc-piso); }
+.manifiesto-item__borrar:disabled { opacity: 0.5; cursor: wait; }

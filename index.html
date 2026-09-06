@@ -48,6 +48,11 @@
           </div>
         </form>
 
+        <div class="camara-zona">
+          <button class="btn btn--camara" id="toggleCamaraBtn" type="button">📷 Escanear con cámara</button>
+          <div id="reader" class="reader" hidden></div>
+        </div>
+
         <p class="error" id="errorMsg" hidden></p>
 
         <section class="result" id="result" hidden>
@@ -66,8 +71,10 @@
             <div class="datastrip__row"><dt>Casillero</dt><dd id="dataCasillero">—</dd></div>
           </dl>
 
+          <div class="ubicaciones-cajas" id="ubicacionesCajas" hidden></div>
+
           <div class="override">
-            <span class="override__label">Corregir ubicación (opcional)</span>
+            <span class="override__label" id="overrideLabel">Corregir ubicación de esta caja</span>
             <div class="override__pills" id="overridePills" role="group">
               <button type="button" class="pill" data-loc="PALET 01">Palet 01</button>
               <button type="button" class="pill" data-loc="PALET 02">Palet 02</button>
@@ -104,8 +111,7 @@
         <div class="import-panel">
           <p class="import-instrucciones">
             Copia las filas de datos de tu hoja Mxxx en Google Sheets
-            (sin encabezado, columnas A hasta Q) y pégalas en el campo de abajo.<br/>
-            El sistema detecta automáticamente el estado actual (ya registradas o pendientes).
+            (sin encabezado, columnas A hasta Q) y pégalas abajo.
           </p>
           <textarea id="importTextarea" class="import-textarea"
             placeholder="Pega aquí las filas del manifiesto..."></textarea>
@@ -127,10 +133,10 @@
     </div>
   </div>
 
-  <!-- Firebase SDK (compat — sin bundler, funciona directo en el browser) -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
