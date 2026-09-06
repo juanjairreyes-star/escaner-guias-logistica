@@ -391,16 +391,7 @@ function renderResultado(data) {
   els.dataCasillero.textContent = g.casillero || '—';
 
   renderUbicacionesCajas(g);
-
-  // Las pastillas corrigen la caja recién escaneada
-  if (currentCaja) {
-    els.overrideLabel.textContent = 'Corregir ubicación de la caja ' + currentCaja;
-    els.overridePills.parentElement.hidden = false;
-    actualizarPills(g.ubicacionSugerida);
-  } else {
-    els.overrideLabel.textContent = 'Guía ya completa — usa la lista de arriba como referencia';
-    els.overridePills.parentElement.hidden = true;
-  }
+  actualizarPanelCorreccion(g);
 
   els.result.hidden = false;
 
@@ -410,22 +401,54 @@ function renderResultado(data) {
   }
 }
 
-// Muestra dónde quedó cada caja — solo si la guía tiene más de una
+// Muestra dónde quedó cada caja. Cada fila es un botón: al tocarla se
+// selecciona esa caja y las pastillas de abajo corrigen SU ubicación.
+// Esto permite reubicar cajas de guías ya completas.
 function renderUbicacionesCajas(g) {
   const ubis = g.ubicaciones || [];
-  if (g.cajas <= 1 || !ubis.length) {
+  if (!ubis.length) {
     els.ubicacionesCajas.hidden = true;
     return;
   }
   const filas = ubis.map(u =>
-    '<div class="ubicacion-caja" data-actual="' + (u.caja === currentCaja) + '">' +
+    '<button type="button" class="ubicacion-caja" data-caja="' + u.caja + '" data-actual="' + (u.caja === currentCaja) + '">' +
     '<span class="ubicacion-caja__num">Caja ' + u.caja + ' / ' + g.cajas + '</span>' +
     '<span class="ubicacion-caja__loc">' + escapeHtml(u.ubicacion) + '</span>' +
-    '</div>'
+    '</button>'
   ).join('');
-  els.ubicacionesCajas.innerHTML = '<div class="ubicaciones-cajas__titulo">Ubicación por caja</div>' + filas;
+  els.ubicacionesCajas.innerHTML =
+    '<div class="ubicaciones-cajas__titulo">Ubicación por caja — toca una para corregirla</div>' + filas;
   els.ubicacionesCajas.hidden = false;
 }
+
+// Habilita o no las pastillas según haya una caja seleccionada
+function actualizarPanelCorreccion(g) {
+  const ubis = g.ubicaciones || [];
+  if (!ubis.length) {
+    els.overridePills.parentElement.hidden = true;
+    return;
+  }
+  els.overridePills.parentElement.hidden = false;
+
+  if (currentCaja) {
+    const actual = ubis.find(u => u.caja === currentCaja);
+    els.overrideLabel.textContent = 'Corregir ubicación de la caja ' + currentCaja + ' de ' + g.cajas;
+    actualizarPills(actual ? actual.ubicacion : null);
+  } else {
+    els.overrideLabel.textContent = 'Toca una caja arriba para corregir su ubicación';
+    actualizarPills(null);
+  }
+  document.querySelectorAll('.pill').forEach(p => { p.disabled = !currentCaja; });
+}
+
+// Selección de caja desde la lista
+els.ubicacionesCajas.addEventListener('click', (e) => {
+  const btn = e.target.closest('.ubicacion-caja');
+  if (!btn || !currentGuia) return;
+  currentCaja = parseInt(btn.dataset.caja, 10);
+  renderUbicacionesCajas(currentGuia);
+  actualizarPanelCorreccion(currentGuia);
+});
 
 // ============================================
 // PROCESAR ESCANEO
@@ -502,9 +525,9 @@ els.overridePills.addEventListener('click', async (e) => {
       currentGuia = Object.assign({}, g, { ubicaciones: ubicaciones });
     });
 
-    actualizarPills(nuevaUbicacion);
     pintarPlacard(nuevaUbicacion, 'CAJA ' + currentCaja + ' — CORREGIDA', nuevaUbicacion);
     renderUbicacionesCajas(currentGuia);
+    actualizarPanelCorreccion(currentGuia);
     feedback(true);
   } catch (err) {
     showError('No se pudo guardar la corrección.');
@@ -612,6 +635,7 @@ function renderManifiestos(data) {
         '<span class="manifiesto-item__nombre">' + escapeHtml(nombre) + '</span>' +
         '<div class="manifiesto-item__acciones">' +
           '<button type="button" class="manifiesto-item__conteo-btn" data-hoja="' + escapeHtml(nombre) + '">' + completas + ' / ' + total + '</button>' +
+          '<button type="button" class="manifiesto-item__reiniciar" data-reiniciar="' + escapeHtml(nombre) + '">Reiniciar</button>' +
           '<button type="button" class="manifiesto-item__borrar" data-borrar="' + escapeHtml(nombre) + '">Borrar</button>' +
         '</div>' +
       '</div>' +
@@ -635,6 +659,55 @@ async function verDetalleManifiesto(manifiesto) {
       (guias.length ? guias.map(g => renderItemGuia(g, g.cliente)).join('') : '<p class="cliente-empty">Sin guías.</p>');
   } catch (err) {
     els.manifiestosResultados.innerHTML = '<p class="error">No se pudo cargar el detalle.</p>';
+  }
+}
+
+// ============================================
+// REINICIAR MANIFIESTO — deja las guías en la app pero borra su
+// estado de escaneo: vuelven todas a "pendiente 0/N" y se limpian
+// las ubicaciones por caja. Útil para repetir una recepción o
+// deshacer un turno de pruebas sin volver a importar nada.
+// ============================================
+async function reiniciarManifiesto(manifiesto, boton) {
+  const confirmar = confirm(
+    'REINICIAR "' + manifiesto + '"\n\n' +
+    'Las guías se conservan, pero vuelven todas a estado pendiente (0/N) ' +
+    'y se borran las ubicaciones por caja ya asignadas.\n\n' +
+    'No hace falta volver a importar el manifiesto.\n' +
+    'El historial de escaneos se conserva como bitácora.\n\n¿Continuar?'
+  );
+  if (!confirmar) return;
+
+  boton.disabled = true;
+  boton.textContent = 'Reiniciando…';
+
+  try {
+    const snapshot = await db.collection(COL_GUIAS).where('manifiesto', '==', manifiesto).get();
+    const docs = snapshot.docs;
+
+    for (let i = 0; i < docs.length; i += 400) {
+      const batch = db.batch();
+      docs.slice(i, i + 400).forEach(d => {
+        batch.update(d.ref, { cajasEscaneadas: 0, completa: false, ubicaciones: [] });
+      });
+      await batch.commit();
+    }
+
+    // Deja constancia del reinicio en la bitácora
+    await db.collection(COL_REGISTRO).add({
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      operador: els.operadorInput.value.trim() || 'SIN NOMBRE',
+      tipoEvento: 'REINICIO_MANIFIESTO',
+      manifiesto: manifiesto,
+      guiasAfectadas: docs.length
+    });
+
+    await recalcularResumen();
+    await buscarManifiestos();
+  } catch (err) {
+    showError('No se pudo reiniciar el manifiesto: ' + err.message);
+    boton.disabled = false;
+    boton.textContent = 'Reiniciar';
   }
 }
 
@@ -696,6 +769,8 @@ async function recalcularResumen() {
 }
 
 els.manifiestosResultados.addEventListener('click', (e) => {
+  const btnReiniciar = e.target.closest('.manifiesto-item__reiniciar');
+  if (btnReiniciar) { reiniciarManifiesto(btnReiniciar.dataset.reiniciar, btnReiniciar); return; }
   const btnBorrar = e.target.closest('.manifiesto-item__borrar');
   if (btnBorrar) { borrarManifiesto(btnBorrar.dataset.borrar, btnBorrar); return; }
   const btnConteo = e.target.closest('.manifiesto-item__conteo-btn');
