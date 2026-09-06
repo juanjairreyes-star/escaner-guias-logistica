@@ -133,9 +133,9 @@ function beep(exito) {
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.type = 'sine';
-    osc.frequency.value = exito ? 880 : 300;   // agudo = ok, grave = problema
-    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    osc.type = 'square';
+    osc.frequency.value = exito ? 2000 : 300;   // agudo = ok, grave = problema
+    gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
     osc.start();
     osc.stop(audioCtx.currentTime + 0.18);
