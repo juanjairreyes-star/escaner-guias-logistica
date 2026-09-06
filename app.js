@@ -134,11 +134,11 @@ function beep(exito) {
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.type = 'square';
-    osc.frequency.value = exito ? 2000 : 300;   // agudo = ok, grave = problema
+    osc.frequency.value = exito ? 1500 : 300;   // agudo = ok, grave = problema
     gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.18);
+    osc.stop(audioCtx.currentTime + 0.1);
   } catch (e) { /* audio no disponible, no es crítico */ }
 }
 
