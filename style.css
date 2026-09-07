@@ -186,7 +186,7 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .menu-wrap { position: relative; }
 .menu-desplegable { display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
   background: var(--surface-raised); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 4px; min-width: 170px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
+  padding: 4px; min-width: 215px; box-shadow: 0 8px 24px rgba(0,0,0,0.45); }
 .menu-desplegable[data-abierto="true"] { display: block; }
 .menu-item { display: block; width: 100%; text-align: left; background: none; border: none;
   color: var(--text); font-family: var(--font-body); font-size: 13px; font-weight: 500;

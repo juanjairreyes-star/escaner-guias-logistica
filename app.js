@@ -650,7 +650,8 @@ function tarjetaManifiesto(nombre, m, archivado) {
             '<button type="button" class="menu-item" data-archivar="' + n + '">Archivar</button>' +
             '<button type="button" class="menu-item menu-item--aviso" data-reiniciar="' + n + '">Reiniciar</button>' +
             '<div class="menu-sep"></div>' +
-            '<button type="button" class="menu-item menu-item--peligro" data-borrar="' + n + '">Borrar</button>' +
+            '<button type="button" class="menu-item menu-item--peligro" data-borrar="' + n + '">Borrar manifiesto</button>' +
+            '<button type="button" class="menu-item menu-item--peligro" data-borrar-historial="' + n + '">Borrar historial de pruebas</button>' +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -785,6 +786,58 @@ async function cambiarArchivado(manifiesto, archivar, boton) {
     showError('No se pudo ' + (archivar ? 'archivar' : 'desarchivar') + ': ' + err.message);
     boton.disabled = false;
     boton.textContent = archivar ? 'Archivar' : 'Desarchivar';
+  }
+}
+
+// ============================================
+// BORRAR HISTORIAL — SOLO PARA DATOS DE PRUEBA
+// El historial es el respaldo de auditoría a 5 años. Esta acción lo
+// destruye sin posibilidad de recuperación, por eso exige escribir el
+// nombre del manifiesto a mano antes de ejecutarse.
+// ============================================
+async function borrarHistorialManifiesto(manifiesto, boton) {
+  const advertencia =
+    'BORRAR HISTORIAL DE "' + manifiesto + '"\n\n' +
+    'Esto elimina de forma permanente todos los escaneos, correcciones y ' +
+    'reinicios registrados para este manifiesto.\n\n' +
+    'El historial es el respaldo de auditoría. Usa esto ÚNICAMENTE sobre ' +
+    'manifiestos de prueba, nunca sobre operaciones reales.\n\n' +
+    'No se puede deshacer.\n\n' +
+    'Escribe ' + manifiesto + ' para confirmar:';
+
+  const respuesta = prompt(advertencia);
+  if (respuesta === null) return;
+
+  if (respuesta.trim().toUpperCase() !== manifiesto.trim().toUpperCase()) {
+    showError('El nombre no coincide. No se borró nada.');
+    return;
+  }
+
+  boton.disabled = true;
+  boton.textContent = 'Borrando historial…';
+
+  try {
+    const snapshot = await db.collection(COL_REGISTRO).where('manifiesto', '==', manifiesto).get();
+    const docs = snapshot.docs;
+
+    if (!docs.length) {
+      showError('No se encontró historial para ' + manifiesto + '.');
+      return;
+    }
+
+    for (let i = 0; i < docs.length; i += 400) {
+      const batch = db.batch();
+      docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    cerrarMenus();
+    mostrarConfirmacion('HISTORIAL BORRADO (' + docs.length + ' eventos)', 'YA_COMPLETA');
+  } catch (err) {
+    showError('No se pudo borrar el historial: ' + err.message);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = 'Borrar historial de pruebas';
   }
 }
 
@@ -1001,6 +1054,8 @@ els.manifiestosResultados.addEventListener('click', (e) => {
 
   const btnReiniciar = e.target.closest('[data-reiniciar]');
   if (btnReiniciar) { cerrarMenus(); reiniciarManifiesto(btnReiniciar.dataset.reiniciar, btnReiniciar); return; }
+  const btnBorrarHist = e.target.closest('[data-borrar-historial]');
+  if (btnBorrarHist) { borrarHistorialManifiesto(btnBorrarHist.dataset.borrarHistorial, btnBorrarHist); return; }
   const btnBorrar = e.target.closest('[data-borrar]');
   if (btnBorrar) { cerrarMenus(); borrarManifiesto(btnBorrar.dataset.borrar, btnBorrar); return; }
   const btnConteo = e.target.closest('.manifiesto-item__conteo-btn');
