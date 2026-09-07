@@ -71,6 +71,7 @@ let resumenLocal = { totalGuias: 0, totalCompletas: 0, porManifiesto: {} };
 let guiasParsadas = [];
 let html5QrCode = null;
 let camaraActiva = false;
+let archivadosAbiertos = false;
 
 // ============================================
 // ELEMENTOS
@@ -133,12 +134,12 @@ function beep(exito) {
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.type = 'square';
-    osc.frequency.value = exito ? 1500 : 300;   // agudo = ok, grave = problema
-    gain.gain.setValueAtTime(0.8, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    osc.type = 'sine';
+    osc.frequency.value = exito ? 880 : 300;   // agudo = ok, grave = problema
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.1);
+    osc.stop(audioCtx.currentTime + 0.18);
   } catch (e) { /* audio no disponible, no es crítico */ }
 }
 
@@ -552,7 +553,10 @@ async function buscarCliente(nombre) {
   const buscado = limpiarNombre(nombre);
 
   try {
-    const snapshot = await db.collection(COL_GUIAS).get();
+    // Filtra los archivados en la consulta, no en el navegador: Firestore
+    // solo cobra los documentos que devuelve, así que los manifiestos
+    // archivados dejan de consumir cuota de lectura por completo.
+    const snapshot = await db.collection(COL_GUIAS).where('archivado', '==', false).get();
     const resultados = [];
     snapshot.forEach(doc => {
       const g = doc.data();
@@ -614,6 +618,47 @@ async function buscarManifiestos() {
   }
 }
 
+function tarjetaManifiesto(nombre, m, archivado) {
+  const total = m.total || 0;
+  const completas = m.completas || 0;
+  const pct = total > 0 ? (completas / total * 100) : 0;
+  const completado = total > 0 && completas === total;
+  const n = escapeHtml(nombre);
+
+  const botonesComunes =
+    '<button type="button" class="manifiesto-item__conteo-btn" data-hoja="' + n + '">' + completas + ' / ' + total + '</button>' +
+    '<button type="button" class="manifiesto-item__exportar" data-exportar="' + n + '">Exportar</button>';
+
+  if (archivado) {
+    return '<div class="manifiesto-item manifiesto-item--archivado">' +
+      '<div class="manifiesto-item__header">' +
+        '<span class="manifiesto-item__nombre">' + n + '</span>' +
+        '<div class="manifiesto-item__acciones">' + botonesComunes +
+          '<button type="button" class="manifiesto-item__desarchivar" data-desarchivar="' + n + '">Desarchivar</button>' +
+        '</div>' +
+      '</div></div>';
+  }
+
+  const badge = completado ? '<span class="manifiesto-item__badge">MANIFIESTO COMPLETADO</span>' : '';
+  return '<div class="manifiesto-item" data-completo="' + completado + '">' +
+    '<div class="manifiesto-item__header">' +
+      '<span class="manifiesto-item__nombre">' + n + '</span>' +
+      '<div class="manifiesto-item__acciones">' + botonesComunes +
+        '<div class="menu-wrap">' +
+          '<button type="button" class="manifiesto-item__menu" data-menu="' + n + '" aria-label="Más acciones">⋮</button>' +
+          '<div class="menu-desplegable" data-menu-de="' + n + '">' +
+            '<button type="button" class="menu-item" data-archivar="' + n + '">Archivar</button>' +
+            '<button type="button" class="menu-item menu-item--aviso" data-reiniciar="' + n + '">Reiniciar</button>' +
+            '<div class="menu-sep"></div>' +
+            '<button type="button" class="menu-item menu-item--peligro" data-borrar="' + n + '">Borrar</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="manifiesto-item__track"><div class="manifiesto-item__fill" style="width:' + pct + '%"></div></div>' +
+    badge + '</div>';
+}
+
 function renderManifiestos(data) {
   const por = data.porManifiesto || {};
   const nombres = Object.keys(por).sort();
@@ -622,26 +667,25 @@ function renderManifiestos(data) {
     return;
   }
 
-  els.manifiestosResultados.innerHTML = nombres.map(nombre => {
-    const m = por[nombre];
-    const total = m.total || 0;
-    const completas = m.completas || 0;
-    const pct = total > 0 ? (completas / total * 100) : 0;
-    const completado = total > 0 && completas === total;
-    const badge = completado ? '<span class="manifiesto-item__badge">MANIFIESTO COMPLETADO</span>' : '';
+  const activos = nombres.filter(n => !por[n].archivado);
+  const archivados = nombres.filter(n => por[n].archivado);
 
-    return '<div class="manifiesto-item" data-completo="' + completado + '">' +
-      '<div class="manifiesto-item__header">' +
-        '<span class="manifiesto-item__nombre">' + escapeHtml(nombre) + '</span>' +
-        '<div class="manifiesto-item__acciones">' +
-          '<button type="button" class="manifiesto-item__conteo-btn" data-hoja="' + escapeHtml(nombre) + '">' + completas + ' / ' + total + '</button>' +
-          '<button type="button" class="manifiesto-item__reiniciar" data-reiniciar="' + escapeHtml(nombre) + '">Reiniciar</button>' +
-          '<button type="button" class="manifiesto-item__borrar" data-borrar="' + escapeHtml(nombre) + '">Borrar</button>' +
-        '</div>' +
-      '</div>' +
-      '<div class="manifiesto-item__track"><div class="manifiesto-item__fill" style="width:' + pct + '%"></div></div>' +
-      badge + '</div>';
-  }).join('');
+  let html = '';
+  html += activos.length
+    ? activos.map(n => tarjetaManifiesto(n, por[n], false)).join('')
+    : '<p class="cliente-empty">No hay manifiestos activos.</p>';
+
+  if (archivados.length) {
+    html += '<button type="button" class="archivados-toggle" data-abierto="' + archivadosAbiertos + '">' +
+      '<span class="archivados-toggle__flecha">' + (archivadosAbiertos ? '▾' : '▸') + '</span>' +
+      'Archivados (' + archivados.length + ')</button>';
+    if (archivadosAbiertos) {
+      html += '<div class="archivados-lista">' +
+        archivados.map(n => tarjetaManifiesto(n, por[n], true)).join('') + '</div>';
+    }
+  }
+
+  els.manifiestosResultados.innerHTML = html;
 }
 
 async function verDetalleManifiesto(manifiesto) {
@@ -712,6 +756,156 @@ async function reiniciarManifiesto(manifiesto, boton) {
 }
 
 // ============================================
+// ARCHIVAR / DESARCHIVAR
+// Marca las guías con archivado=true y lo refleja en el resumen.
+// La búsqueda por cliente filtra por ese campo en la consulta, así que
+// un manifiesto archivado deja de consumir cuota de lectura.
+// No se borra nada: sigue consultable desde su propia sección.
+// ============================================
+async function cambiarArchivado(manifiesto, archivar, boton) {
+  boton.disabled = true;
+  boton.textContent = archivar ? 'Archivando…' : 'Restaurando…';
+
+  try {
+    const snapshot = await db.collection(COL_GUIAS).where('manifiesto', '==', manifiesto).get();
+    const docs = snapshot.docs;
+    for (let i = 0; i < docs.length; i += 400) {
+      const batch = db.batch();
+      docs.slice(i, i + 400).forEach(d => batch.update(d.ref, { archivado: archivar }));
+      await batch.commit();
+    }
+
+    await db.doc(DOC_RESUMEN).set({
+      porManifiesto: { [manifiesto]: { archivado: archivar } }
+    }, { merge: true });
+
+    if (archivar) archivadosAbiertos = true;
+    await buscarManifiestos();
+  } catch (err) {
+    showError('No se pudo ' + (archivar ? 'archivar' : 'desarchivar') + ': ' + err.message);
+    boton.disabled = false;
+    boton.textContent = archivar ? 'Archivar' : 'Desarchivar';
+  }
+}
+
+// ============================================
+// EXPORTACIÓN A CSV
+// Genera dos archivos: el listado de guías con su ubicación real por
+// caja, y el historial completo de escaneos y correcciones. CSV plano
+// para que se pueda abrir en cualquier equipo dentro de 5 años sin
+// depender de esta aplicación ni de Firebase.
+// ============================================
+function csvCampo(v) {
+  const s = (v === null || v === undefined) ? '' : String(v);
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+function csvLinea(campos) {
+  return campos.map(csvCampo).join(',');
+}
+
+function descargarCSV(nombreArchivo, contenido) {
+  // El BOM inicial hace que Excel lea bien las tildes y la Ñ
+  const blob = new Blob(['\ufeff' + contenido], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nombreArchivo;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function formatearFecha(ts) {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+    ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+async function exportarManifiesto(manifiesto, boton) {
+  const textoOriginal = boton.textContent;
+  boton.disabled = true;
+  boton.textContent = 'Generando…';
+
+  try {
+    const snapGuias = await db.collection(COL_GUIAS).where('manifiesto', '==', manifiesto).get();
+
+    const filasGuias = [csvLinea([
+      'AWB', 'Consignatario', 'Cliente', 'Tipo de cliente', 'Peso Total (kg)',
+      'Cajas', 'Casillero', 'Manifiesto', 'Cajas escaneadas', 'Estado',
+      'Ubicacion sugerida', 'Ubicacion real por caja'
+    ])];
+
+    snapGuias.forEach(doc => {
+      const g = doc.data();
+      const detalle = (g.ubicaciones || []).map(u => 'Caja ' + u.caja + ': ' + u.ubicacion).join(' | ');
+      filasGuias.push(csvLinea([
+        g.awb, g.consignatario, g.cliente, g.tipoCliente, g.pesoTotal,
+        g.cajas, g.casillero, g.manifiesto, g.cajasEscaneadas || 0,
+        g.completa ? 'COMPLETA' : 'PENDIENTE', g.ubicacionSugerida, detalle
+      ]));
+    });
+
+    const snapReg = await db.collection(COL_REGISTRO).where('manifiesto', '==', manifiesto).get();
+    const eventos = [];
+    snapReg.forEach(doc => eventos.push(doc.data()));
+    eventos.sort((a, b) => {
+      const ta = a.timestamp && a.timestamp.seconds ? a.timestamp.seconds : 0;
+      const tb = b.timestamp && b.timestamp.seconds ? b.timestamp.seconds : 0;
+      return ta - tb;
+    });
+
+    const filasHist = [csvLinea([
+      'Fecha y hora', 'AWB', 'Cliente', 'Operador', 'Tipo de evento',
+      'Caja', 'Cajas totales', 'Ubicacion asignada', 'Manifiesto'
+    ])];
+    eventos.forEach(e => {
+      filasHist.push(csvLinea([
+        formatearFecha(e.timestamp), e.awb, e.cliente, e.operador, e.tipoEvento,
+        e.cajaActual, e.cajasTotal, e.ubicacionFinal, e.manifiesto
+      ]));
+    });
+
+    descargarCSV(manifiesto + '_guias.csv', filasGuias.join('\n'));
+    setTimeout(() => descargarCSV(manifiesto + '_historial.csv', filasHist.join('\n')), 600);
+  } catch (err) {
+    showError('No se pudo exportar: ' + err.message);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = textoOriginal;
+  }
+}
+
+// ============================================
+// MIGRACIÓN — marca archivado=false en las guías que se crearon antes
+// de que existiera este campo. Sin esto, la consulta filtrada no las
+// devolvería y desaparecerían de la búsqueda por cliente.
+// Corre una sola vez; queda registrada en el documento de resumen.
+// ============================================
+async function migrarCampoArchivado() {
+  try {
+    const resumenDoc = await db.doc(DOC_RESUMEN).get();
+    if (resumenDoc.exists && resumenDoc.data().migracionArchivado) return;
+
+    const snap = await db.collection(COL_GUIAS).get();
+    const pendientes = snap.docs.filter(d => d.data().archivado === undefined);
+
+    for (let i = 0; i < pendientes.length; i += 400) {
+      const batch = db.batch();
+      pendientes.slice(i, i + 400).forEach(d => batch.update(d.ref, { archivado: false }));
+      await batch.commit();
+    }
+
+    await db.doc(DOC_RESUMEN).set({ migracionArchivado: true }, { merge: true });
+  } catch (e) {
+    console.warn('Migración de campo archivado pendiente:', e);
+  }
+}
+
+// ============================================
 // BORRAR MANIFIESTO — elimina sus guías y recalcula el resumen.
 // El historial en `registro` NO se borra: queda como bitácora.
 // ============================================
@@ -764,15 +958,51 @@ async function recalcularResumen() {
     if (g.completa) porManifiesto[m].completas++;
   });
 
-  await db.doc(DOC_RESUMEN).set({ totalGuias, totalCompletas, porManifiesto });
+  // Preserva el estado archivado que ya tuviera cada manifiesto
+  const previo = await db.doc(DOC_RESUMEN).get();
+  const porManifiestoPrevio = previo.exists ? (previo.data().porManifiesto || {}) : {};
+  Object.keys(porManifiesto).forEach(m => {
+    if (porManifiestoPrevio[m] && porManifiestoPrevio[m].archivado) porManifiesto[m].archivado = true;
+  });
+
+  await db.doc(DOC_RESUMEN).set({ totalGuias, totalCompletas, porManifiesto, migracionArchivado: true });
   pintarProgreso({ totalGuias, totalCompletas, porManifiesto });
 }
 
+function cerrarMenus() {
+  document.querySelectorAll('.menu-desplegable').forEach(m => m.dataset.abierto = 'false');
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.menu-wrap')) cerrarMenus();
+});
+
 els.manifiestosResultados.addEventListener('click', (e) => {
-  const btnReiniciar = e.target.closest('.manifiesto-item__reiniciar');
-  if (btnReiniciar) { reiniciarManifiesto(btnReiniciar.dataset.reiniciar, btnReiniciar); return; }
-  const btnBorrar = e.target.closest('.manifiesto-item__borrar');
-  if (btnBorrar) { borrarManifiesto(btnBorrar.dataset.borrar, btnBorrar); return; }
+  const btnMenu = e.target.closest('.manifiesto-item__menu');
+  if (btnMenu) {
+    const menu = els.manifiestosResultados.querySelector('.menu-desplegable[data-menu-de="' + btnMenu.dataset.menu + '"]');
+    const estaAbierto = menu && menu.dataset.abierto === 'true';
+    cerrarMenus();
+    if (menu && !estaAbierto) menu.dataset.abierto = 'true';
+    return;
+  }
+
+  const btnToggle = e.target.closest('.archivados-toggle');
+  if (btnToggle) { archivadosAbiertos = !archivadosAbiertos; buscarManifiestos(); return; }
+
+  const btnExportar = e.target.closest('.manifiesto-item__exportar');
+  if (btnExportar) { exportarManifiesto(btnExportar.dataset.exportar, btnExportar); return; }
+
+  const btnArchivar = e.target.closest('[data-archivar]');
+  if (btnArchivar) { cerrarMenus(); cambiarArchivado(btnArchivar.dataset.archivar, true, btnArchivar); return; }
+
+  const btnDesarchivar = e.target.closest('.manifiesto-item__desarchivar');
+  if (btnDesarchivar) { cambiarArchivado(btnDesarchivar.dataset.desarchivar, false, btnDesarchivar); return; }
+
+  const btnReiniciar = e.target.closest('[data-reiniciar]');
+  if (btnReiniciar) { cerrarMenus(); reiniciarManifiesto(btnReiniciar.dataset.reiniciar, btnReiniciar); return; }
+  const btnBorrar = e.target.closest('[data-borrar]');
+  if (btnBorrar) { cerrarMenus(); borrarManifiesto(btnBorrar.dataset.borrar, btnBorrar); return; }
   const btnConteo = e.target.closest('.manifiesto-item__conteo-btn');
   if (btnConteo) { verDetalleManifiesto(btnConteo.dataset.hoja); return; }
   const btnVolver = e.target.closest('.manifiesto-detalle__volver');
@@ -820,7 +1050,8 @@ function parsearTSV(texto) {
       clienteNorm: limpiarNombre(cols[13] || ''),
       pesoTotal, cajas, tipoCliente, manifiesto,
       casillero: (cols[9] || '').trim(),
-      ubicacionSugerida, cajasEscaneadas, completa, ubicaciones
+      ubicacionSugerida, cajasEscaneadas, completa, ubicaciones,
+      archivado: false
     });
   });
 
@@ -907,7 +1138,11 @@ els.tabs.forEach(tab => {
 // ARRANQUE
 // ============================================
 auth.onAuthStateChanged(user => {
-  if (user) { setStatus('ok'); actualizarProgreso(); }
+  if (user) {
+    setStatus('ok');
+    actualizarProgreso();
+    migrarCampoArchivado();
+  }
 });
 
 auth.signInAnonymously().catch(err => {
