@@ -69,6 +69,8 @@ let currentCaja = null;      // número de caja recién escaneada (para corregir
 let currentGuia = null;
 let resumenLocal = { totalGuias: 0, totalCompletas: 0, porManifiesto: {} };
 let guiasParsadas = [];
+let formatoDetectado = 'sheets';
+let fechaDetectada = '';
 let html5QrCode = null;
 let camaraActiva = false;
 let archivadosAbiertos = false;
@@ -167,12 +169,12 @@ function beep(exito) {
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.type = 'square';
-    osc.frequency.value = exito ? 1600 : 300;   // agudo = ok, grave = problema
-    gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    osc.type = 'sine';
+    osc.frequency.value = exito ? 880 : 300;   // agudo = ok, grave = problema
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.1);
+    osc.stop(audioCtx.currentTime + 0.18);
   } catch (e) { /* audio no disponible, no es crítico */ }
 }
 
@@ -1009,8 +1011,15 @@ async function exportarManifiesto(manifiesto, boton) {
     const filasGuias = [csvLinea([
       'AWB', 'Consignatario', 'Cliente', 'Tipo de cliente', 'Peso Total (kg)',
       'Cajas', 'Casillero', 'Manifiesto', 'Cajas escaneadas', 'Estado',
-      'Ubicacion sugerida', 'Ubicacion real por caja'
+      'Ubicacion sugerida', 'Ubicacion real por caja', 'Fecha de recepcion'
     ])];
+
+    // La fecha vive en el resumen; la incluimos para que el CSV sea
+    // un respaldo completo y la restauracion no la pierda.
+    const docResumen = await db.doc(DOC_RESUMEN).get();
+    const infoManifiesto = (docResumen.exists && docResumen.data().porManifiesto)
+      ? (docResumen.data().porManifiesto[manifiesto] || {}) : {};
+    const fechaManifiesto = infoManifiesto.fecha || '';
 
     snapGuias.forEach(doc => {
       const g = doc.data();
@@ -1018,7 +1027,8 @@ async function exportarManifiesto(manifiesto, boton) {
       filasGuias.push(csvLinea([
         g.awb, g.consignatario, g.cliente, g.tipoCliente, g.pesoTotal,
         g.cajas, g.casillero, g.manifiesto, g.cajasEscaneadas || 0,
-        g.completa ? 'COMPLETA' : 'PENDIENTE', g.ubicacionSugerida, detalle
+        g.completa ? 'COMPLETA' : 'PENDIENTE', g.ubicacionSugerida, detalle,
+        fechaManifiesto
       ]));
     });
 
@@ -1200,8 +1210,100 @@ els.manifiestosResultados.addEventListener('click', (e) => {
 // ============================================
 // IMPORTACIÓN DESDE TSV
 // ============================================
+// Normaliza saltos de linea (Windows deja \r que ensucia el ultimo campo)
+function normalizarLineas(texto) {
+  return texto.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n');
+}
+
+// Divide una linea CSV respetando comillas (los nombres y descripciones
+// pueden contener comas, por eso no basta con split(","))
+function parsearLineaCSV(linea) {
+  const campos = [];
+  let actual = '';
+  let dentroComillas = false;
+  for (let i = 0; i < linea.length; i++) {
+    const c = linea[i];
+    if (c === '"') {
+      if (dentroComillas && linea[i + 1] === '"') { actual += '"'; i++; }
+      else dentroComillas = !dentroComillas;
+    } else if (c === ',' && !dentroComillas) {
+      campos.push(actual); actual = '';
+    } else {
+      actual += c;
+    }
+  }
+  campos.push(actual);
+  return campos;
+}
+
+// Reconstruye el array de ubicaciones desde "Caja 1: PALET 01 | Caja 2: PISO"
+function parsearUbicacionesTexto(texto) {
+  if (!texto || !texto.trim()) return [];
+  return texto.split('|').map(parte => {
+    const m = parte.trim().match(/^Caja\s+(\d+)\s*:\s*(.+)$/i);
+    return m ? { caja: parseInt(m[1], 10), ubicacion: m[2].trim() } : null;
+  }).filter(Boolean);
+}
+
+// Lee un CSV generado por la propia exportacion de esta aplicacion.
+// Restaura el estado real: cuantas cajas van y en que palet quedo cada una.
+function parsearExportacion(texto) {
+  const lineas = normalizarLineas(texto);
+  const guias = [];
+  let fechaDetectada = '';
+
+  // Si el archivo se abrio en Excel y se copiaron las filas, llega
+  // separado por tabulaciones en vez de comas. Aceptamos ambos.
+  const porTabulacion = (lineas[0] || '').indexOf('\t') !== -1;
+
+  lineas.forEach((linea, idx) => {
+    if (idx === 0) return; // encabezado
+    if (!linea.trim()) return;
+    const c = porTabulacion ? linea.split('\t') : parsearLineaCSV(linea);
+    const awb = (c[0] || '').trim();
+    if (!awb) return;
+
+    const pesoTotal = parseFloat((c[4] || '').replace(',', '.')) || 0;
+    const cajas = parseInt(c[5], 10) || 1;
+    const tipoCliente = (c[3] || 'SIN CLASIFICAR').trim().toUpperCase();
+    const cajasEscaneadas = parseInt(c[8], 10) || 0;
+    const ubicaciones = parsearUbicacionesTexto(c[11] || '');
+    if (!fechaDetectada && c[12]) fechaDetectada = c[12].trim();
+
+    guias.push({
+      awb: awb.toUpperCase(),
+      consignatario: (c[1] || '').trim(),
+      cliente: (c[2] || '').trim(),
+      clienteNorm: limpiarNombre(c[2] || ''),
+      pesoTotal: pesoTotal,
+      cajas: cajas,
+      tipoCliente: tipoCliente,
+      manifiesto: (c[7] || '').trim(),
+      casillero: (c[6] || '').trim(),
+      ubicacionSugerida: calcularUbicacion(pesoTotal, tipoCliente),
+      cajasEscaneadas: cajasEscaneadas,
+      completa: (c[9] || '').trim().toUpperCase() === 'COMPLETA',
+      ubicaciones: ubicaciones,
+      archivado: false
+    });
+  });
+
+  return { guias: guias, fecha: fechaDetectada };
+}
+
+// Decide que formato se pego: la exportacion propia o el TSV de Sheets
+function parsearEntrada(texto) {
+  const primeraLinea = (normalizarLineas(texto)[0] || '');
+  const esExportacion = primeraLinea.indexOf('Ubicacion real por caja') !== -1;
+  if (esExportacion) {
+    const r = parsearExportacion(texto);
+    return { guias: r.guias, fecha: r.fecha, formato: 'exportacion' };
+  }
+  return { guias: parsearTSV(texto), fecha: '', formato: 'sheets' };
+}
+
 function parsearTSV(texto) {
-  const lineas = texto.trim().split('\n');
+  const lineas = normalizarLineas(texto);
   const guias = [];
 
   lineas.forEach(linea => {
@@ -1255,15 +1357,29 @@ function logImport(msg, tipo) {
 }
 
 els.importPrevisualizarBtn.addEventListener('click', () => {
-  guiasParsadas = parsearTSV(els.importTextarea.value);
+  const r = parsearEntrada(els.importTextarea.value);
+  guiasParsadas = r.guias;
+  formatoDetectado = r.formato;
+  fechaDetectada = r.fecha;
+
   if (!guiasParsadas.length) {
     els.importPreview.textContent = 'No se detectaron guías válidas. Revisa el formato.';
     els.importCargarBtn.disabled = true;
     return;
   }
+
+  // Si es un respaldo propio, la fecha viene dentro del archivo
+  if (formatoDetectado === 'exportacion' && fechaDetectada && els.importFecha) {
+    els.importFecha.value = fechaDetectada;
+  }
+
   const manifiestos = [...new Set(guiasParsadas.map(g => g.manifiesto).filter(Boolean))];
   const completas = guiasParsadas.filter(g => g.completa).length;
-  els.importPreview.textContent = guiasParsadas.length + ' guías · Manifiestos: ' +
+  const etiqueta = formatoDetectado === 'exportacion'
+    ? 'RESTAURACIÓN desde respaldo — se recuperan las ubicaciones por caja'
+    : 'Importación desde Sheets';
+
+  els.importPreview.textContent = etiqueta + ' · ' + guiasParsadas.length + ' guías · Manifiestos: ' +
     (manifiestos.join(', ') || '(sin dato)') + ' · Ya registradas: ' + completas;
   els.importCargarBtn.disabled = false;
 });
@@ -1289,7 +1405,9 @@ els.importCargarBtn.addEventListener('click', async () => {
     }
 
     // Guarda la fecha de recepcion del formulario para cada manifiesto importado
-    const fechaImport = els.importFecha.value || hoyISO();
+    const fechaImport = (formatoDetectado === 'exportacion' && fechaDetectada)
+      ? fechaDetectada
+      : (els.importFecha.value || hoyISO());
     const manifiestosImportados = [...new Set(guiasParsadas.map(g => g.manifiesto).filter(Boolean))];
     const fechasPorManifiesto = {};
     manifiestosImportados.forEach(m => { fechasPorManifiesto[m] = { fecha: fechaImport }; });
@@ -1305,6 +1423,8 @@ els.importCargarBtn.addEventListener('click', async () => {
     logImport('✅ Resumen recalculado. Importación completa.', 'ok');
 
     guiasParsadas = [];
+    formatoDetectado = 'sheets';
+    fechaDetectada = '';
     els.importTextarea.value = '';
     els.importPreview.textContent = '';
   } catch (err) {
