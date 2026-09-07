@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
-<title>CRS · GESTOR DE GUÍAS</title>
+<title>CRS · Ubicación</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -113,6 +113,10 @@
             Copia las filas de datos de tu hoja Mxxx en Google Sheets
             (sin encabezado, columnas A hasta Q) y pégalas abajo.
           </p>
+          <div class="import-fecha">
+            <label class="manual-entry__label" for="importFecha">Fecha de recepción</label>
+            <input type="date" id="importFecha" class="import-fecha__input" />
+          </div>
           <textarea id="importTextarea" class="import-textarea"
             placeholder="Pega aquí las filas del manifiesto..."></textarea>
           <div class="import-preview" id="importPreview"></div>

@@ -72,6 +72,38 @@ let guiasParsadas = [];
 let html5QrCode = null;
 let camaraActiva = false;
 let archivadosAbiertos = false;
+let mesesAbiertos = null;
+
+const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+function hoyISO() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+}
+
+function claveMes(fechaISO) {
+  return fechaISO ? fechaISO.slice(0, 7) : "sin-fecha";
+}
+
+function nombreMes(clave) {
+  if (clave === "sin-fecha") return "Sin fecha asignada";
+  const partes = clave.split("-");
+  const nombre = MESES_ES[parseInt(partes[1], 10) - 1] || "";
+  return nombre.charAt(0).toUpperCase() + nombre.slice(1) + " " + partes[0];
+}
+
+function diaCorto(fechaISO) {
+  if (!fechaISO) return "";
+  const partes = fechaISO.split("-");
+  const nombre = MESES_ES[parseInt(partes[1], 10) - 1] || "";
+  return parseInt(partes[2], 10) + " " + nombre.slice(0, 3);
+}
+
+function fechaValida(s) {
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(s)) return false;
+  return !isNaN(new Date(s + "T00:00:00").getTime());
+}
 
 // ============================================
 // ELEMENTOS
@@ -114,6 +146,7 @@ const els = {
   clienteInput: document.getElementById('clienteInput'),
   clienteResultados: document.getElementById('clienteResultados'),
   manifiestosResultados: document.getElementById('manifiestosResultados'),
+  importFecha: document.getElementById('importFecha'),
   importTextarea: document.getElementById('importTextarea'),
   importPreview: document.getElementById('importPreview'),
   importPrevisualizarBtn: document.getElementById('importPrevisualizarBtn'),
@@ -625,6 +658,9 @@ function tarjetaManifiesto(nombre, m, archivado) {
   const completado = total > 0 && completas === total;
   const n = escapeHtml(nombre);
 
+  const dia = diaCorto(m.fecha);
+  const etiquetaDia = dia ? '<span class="manifiesto-item__dia">' + dia + '</span>' : '';
+
   const botonesComunes =
     '<button type="button" class="manifiesto-item__conteo-btn" data-hoja="' + n + '">' + completas + ' / ' + total + '</button>' +
     '<button type="button" class="manifiesto-item__exportar" data-exportar="' + n + '">Exportar</button>';
@@ -632,7 +668,7 @@ function tarjetaManifiesto(nombre, m, archivado) {
   if (archivado) {
     return '<div class="manifiesto-item manifiesto-item--archivado">' +
       '<div class="manifiesto-item__header">' +
-        '<span class="manifiesto-item__nombre">' + n + '</span>' +
+        '<span class="manifiesto-item__nombre">' + n + '</span>' + etiquetaDia +
         '<div class="manifiesto-item__acciones">' + botonesComunes +
           '<button type="button" class="manifiesto-item__desarchivar" data-desarchivar="' + n + '">Desarchivar</button>' +
         '</div>' +
@@ -642,11 +678,12 @@ function tarjetaManifiesto(nombre, m, archivado) {
   const badge = completado ? '<span class="manifiesto-item__badge">MANIFIESTO COMPLETADO</span>' : '';
   return '<div class="manifiesto-item" data-completo="' + completado + '">' +
     '<div class="manifiesto-item__header">' +
-      '<span class="manifiesto-item__nombre">' + n + '</span>' +
+      '<span class="manifiesto-item__nombre">' + n + '</span>' + etiquetaDia +
       '<div class="manifiesto-item__acciones">' + botonesComunes +
         '<div class="menu-wrap">' +
           '<button type="button" class="manifiesto-item__menu" data-menu="' + n + '" aria-label="Más acciones">⋮</button>' +
           '<div class="menu-desplegable" data-menu-de="' + n + '">' +
+            '<button type="button" class="menu-item" data-editar-fecha="' + n + '">Editar fecha</button>' +
             '<button type="button" class="menu-item" data-archivar="' + n + '">Archivar</button>' +
             '<button type="button" class="menu-item menu-item--aviso" data-reiniciar="' + n + '">Reiniciar</button>' +
             '<div class="menu-sep"></div>' +
@@ -668,17 +705,60 @@ function renderManifiestos(data) {
     return;
   }
 
+  // El mes en curso arranca abierto; los anteriores plegados
+  if (mesesAbiertos === null) mesesAbiertos = new Set([claveMes(hoyISO())]);
+
   const activos = nombres.filter(n => !por[n].archivado);
   const archivados = nombres.filter(n => por[n].archivado);
 
+  // Agrupar activos por mes de recepción
+  const grupos = {};
+  activos.forEach(n => {
+    const k = claveMes(por[n].fecha);
+    if (!grupos[k]) grupos[k] = [];
+    grupos[k].push(n);
+  });
+
+  // Meses más recientes primero; "sin fecha" siempre al final
+  const claves = Object.keys(grupos).sort((a, b) => {
+    if (a === 'sin-fecha') return 1;
+    if (b === 'sin-fecha') return -1;
+    return b.localeCompare(a);
+  });
+
   let html = '';
-  html += activos.length
-    ? activos.map(n => tarjetaManifiesto(n, por[n], false)).join('')
-    : '<p class="cliente-empty">No hay manifiestos activos.</p>';
+
+  if (!activos.length) {
+    html += '<p class="cliente-empty">No hay manifiestos activos.</p>';
+  }
+
+  claves.forEach(k => {
+    const lista = grupos[k].sort((a, b) => {
+      const fa = por[a].fecha || '';
+      const fb = por[b].fecha || '';
+      return fb.localeCompare(fa) || b.localeCompare(a);
+    });
+    const totalGuias = lista.reduce((s, n) => s + (por[n].total || 0), 0);
+    const abierto = mesesAbiertos.has(k);
+
+    html += '<button type="button" class="mes-header" data-mes="' + k + '" data-abierto="' + abierto + '">' +
+      '<span class="mes-header__titulo">' +
+        '<span class="mes-header__flecha">' + (abierto ? '\u25be' : '\u25b8') + '</span>' +
+        escapeHtml(nombreMes(k)) +
+      '</span>' +
+      '<span class="mes-header__conteo">' + lista.length + ' manifiesto' + (lista.length === 1 ? '' : 's') +
+        ' \u00b7 ' + totalGuias + ' gu\u00edas</span>' +
+      '</button>';
+
+    if (abierto) {
+      html += '<div class="mes-lista">' +
+        lista.map(n => tarjetaManifiesto(n, por[n], false)).join('') + '</div>';
+    }
+  });
 
   if (archivados.length) {
     html += '<button type="button" class="archivados-toggle" data-abierto="' + archivadosAbiertos + '">' +
-      '<span class="archivados-toggle__flecha">' + (archivadosAbiertos ? '▾' : '▸') + '</span>' +
+      '<span class="archivados-toggle__flecha">' + (archivadosAbiertos ? '\u25be' : '\u25b8') + '</span>' +
       'Archivados (' + archivados.length + ')</button>';
     if (archivadosAbiertos) {
       html += '<div class="archivados-lista">' +
@@ -753,6 +833,46 @@ async function reiniciarManifiesto(manifiesto, boton) {
     showError('No se pudo reiniciar el manifiesto: ' + err.message);
     boton.disabled = false;
     boton.textContent = 'Reiniciar';
+  }
+}
+
+// ============================================
+// EDITAR FECHA DE RECEPCION
+// La fecha vive en el documento de resumen (una sola escritura) y es
+// lo que agrupa los manifiestos por mes en la pestaña Manifiestos.
+// ============================================
+async function editarFechaManifiesto(manifiesto, boton) {
+  const doc = await db.doc(DOC_RESUMEN).get();
+  const actual = (doc.exists && doc.data().porManifiesto && doc.data().porManifiesto[manifiesto])
+    ? (doc.data().porManifiesto[manifiesto].fecha || '') : '';
+
+  const respuesta = prompt(
+    'Fecha de recepcion de ' + manifiesto + '\n\n' +
+    'Formato: AAAA-MM-DD (por ejemplo 2026-02-18).\n' +
+    'Es la fecha que agrupa el manifiesto por mes.',
+    actual || hoyISO()
+  );
+  if (respuesta === null) return;
+
+  const limpia = respuesta.trim();
+  if (!fechaValida(limpia)) {
+    showError('Fecha invalida. Usa el formato AAAA-MM-DD.');
+    return;
+  }
+
+  boton.disabled = true;
+  try {
+    await db.doc(DOC_RESUMEN).set({
+      porManifiesto: { [manifiesto]: { fecha: limpia } }
+    }, { merge: true });
+    mesesAbiertos = mesesAbiertos || new Set();
+    mesesAbiertos.add(claveMes(limpia));
+    cerrarMenus();
+    await buscarManifiestos();
+  } catch (err) {
+    showError('No se pudo guardar la fecha: ' + err.message);
+  } finally {
+    boton.disabled = false;
   }
 }
 
@@ -1015,7 +1135,9 @@ async function recalcularResumen() {
   const previo = await db.doc(DOC_RESUMEN).get();
   const porManifiestoPrevio = previo.exists ? (previo.data().porManifiesto || {}) : {};
   Object.keys(porManifiesto).forEach(m => {
-    if (porManifiestoPrevio[m] && porManifiestoPrevio[m].archivado) porManifiesto[m].archivado = true;
+    if (!porManifiestoPrevio[m]) return;
+    if (porManifiestoPrevio[m].archivado) porManifiesto[m].archivado = true;
+    if (porManifiestoPrevio[m].fecha) porManifiesto[m].fecha = porManifiestoPrevio[m].fecha;
   });
 
   await db.doc(DOC_RESUMEN).set({ totalGuias, totalCompletas, porManifiesto, migracionArchivado: true });
@@ -1039,6 +1161,17 @@ els.manifiestosResultados.addEventListener('click', (e) => {
     if (menu && !estaAbierto) menu.dataset.abierto = 'true';
     return;
   }
+
+  const btnMes = e.target.closest('.mes-header');
+  if (btnMes) {
+    const k = btnMes.dataset.mes;
+    if (mesesAbiertos.has(k)) mesesAbiertos.delete(k); else mesesAbiertos.add(k);
+    buscarManifiestos();
+    return;
+  }
+
+  const btnFecha = e.target.closest('[data-editar-fecha]');
+  if (btnFecha) { editarFechaManifiesto(btnFecha.dataset.editarFecha, btnFecha); return; }
 
   const btnToggle = e.target.closest('.archivados-toggle');
   if (btnToggle) { archivadosAbiertos = !archivadosAbiertos; buscarManifiestos(); return; }
@@ -1155,6 +1288,17 @@ els.importCargarBtn.addEventListener('click', async () => {
       logImport('✅ ' + escritas + ' / ' + guiasParsadas.length + ' guías cargadas…', 'ok');
     }
 
+    // Guarda la fecha de recepcion del formulario para cada manifiesto importado
+    const fechaImport = els.importFecha.value || hoyISO();
+    const manifiestosImportados = [...new Set(guiasParsadas.map(g => g.manifiesto).filter(Boolean))];
+    const fechasPorManifiesto = {};
+    manifiestosImportados.forEach(m => { fechasPorManifiesto[m] = { fecha: fechaImport }; });
+    if (manifiestosImportados.length) {
+      await db.doc(DOC_RESUMEN).set({ porManifiesto: fechasPorManifiesto }, { merge: true });
+      mesesAbiertos = mesesAbiertos || new Set();
+      mesesAbiertos.add(claveMes(fechaImport));
+    }
+
     // Recalcula desde los datos reales — así reimportar el mismo
     // manifiesto no duplica los contadores.
     await recalcularResumen();
@@ -1206,5 +1350,6 @@ auth.signInAnonymously().catch(err => {
 });
 
 cargarOperador();
+if (els.importFecha) els.importFecha.value = hoyISO();
 els.awbInput.focus();
 setInterval(actualizarProgreso, 30000);

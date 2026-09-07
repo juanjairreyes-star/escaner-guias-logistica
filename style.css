@@ -206,3 +206,22 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); f
 .archivados-lista { display: flex; flex-direction: column; gap: 8px; }
 .manifiesto-item--archivado { opacity: 0.72; padding: 12px 16px; }
 .manifiesto-item--archivado .manifiesto-item__nombre { font-size: 15px; color: var(--text-muted); }
+
+/* --- Fecha en importacion --- */
+.import-fecha { display: flex; flex-direction: column; gap: 4px; }
+.import-fecha__input { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 11px 14px; font-family: var(--font-mono); font-size: 14px; color: var(--text); color-scheme: dark; }
+.import-fecha__input:focus-visible { outline: 2px solid var(--loc-estante04); outline-offset: 1px; }
+
+/* --- Agrupacion por mes --- */
+.mes-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; width: 100%;
+  background: none; border: none; border-top: 1px solid var(--border); cursor: pointer; text-align: left;
+  padding: 14px 2px 10px; margin-top: 4px; }
+.mes-header:first-child { border-top: none; margin-top: 0; padding-top: 2px; }
+.mes-header__titulo { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--text); }
+.mes-header__flecha { font-size: 11px; color: var(--text-muted); }
+.mes-header__conteo { font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.mes-header[data-abierto="false"] .mes-header__titulo { color: var(--text-muted); }
+.mes-lista { display: flex; flex-direction: column; gap: 10px; margin-bottom: 6px; }
+
+/* --- Dia junto al nombre del manifiesto --- */
+.manifiesto-item__dia { font-family: var(--font-body); font-size: 12px; font-weight: 400; color: var(--text-muted); margin-left: 8px; }
