@@ -167,12 +167,12 @@ function beep(exito) {
     const gain = audioCtx.createGain();
     osc.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.type = 'sine';
-    osc.frequency.value = exito ? 880 : 300;   // agudo = ok, grave = problema
-    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.18);
+    osc.type = 'square';
+    osc.frequency.value = exito ? 1600 : 300;   // agudo = ok, grave = problema
+    gain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.18);
+    osc.stop(audioCtx.currentTime + 0.1);
   } catch (e) { /* audio no disponible, no es crítico */ }
 }
 
